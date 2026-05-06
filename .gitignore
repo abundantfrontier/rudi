@@ -79,6 +79,18 @@ ehthumbs.db
 Thumbs.db
 
 # =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Databases
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
 # R.U.D.I. Specific - Secrets & Sensitive Data
 # =========================
 # API Keys, Tokens, and Credentials
@@ -91,3 +103,8 @@ config/local.yaml
 config/local.yml
 config/*.local.*
 .env
+
+# Temporary Test Artifacts
+test_*.txt
+secret_*.txt
+active_link.txt
