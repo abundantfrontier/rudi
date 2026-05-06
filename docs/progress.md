@@ -43,10 +43,49 @@
 - [x] Permanent grants with extra confirmation
 - [x] Verification with `tests/common/test_phase4.py`
 
-## Phase 5: Post-v1 Extensibility & Refinements (IN PROGRESS)
-- [x] **[Refinement] Agent Identity Verification (Token-based)**
-- [x] **[Refinement] Control Plane Metrics & Observability**
-- [x] **[Refinement] Centralized Error Handling Documentation**
-- [x] **[Refinement] Dependency Management (requirements.txt, pyproject.toml)**
-- [ ] Attenuated / derived capabilities
-- [ ] Finer-grained scoping
+## Refinements & Hardening (COMPLETED)
+- [x] **Agent Identity Verification (Token-based)**
+- [x] **Strict Identity Mode implementation**
+- [x] **Control Plane Metrics & Observability (get_metrics, get_status)**
+- [x] **Centralized Error Handling Documentation**
+- [x] **Dependency Management (requirements.txt, pyproject.toml)**
+
+## Phase 5: Persistence & State Management (NOT STARTED)
+- [ ] Add persistent storage for grants (SQLite)
+- [ ] Ability to reload active grants on startup
+- [ ] Grant expiration handling across restarts
+- [ ] Encryption for persisted sensitive grant data
+- [ ] Update Control Plane for hybrid in-memory/persisted state
+
+## Phase 6: Tauri Desktop Interface (NOT STARTED)
+- [ ] Separate Python core logic for sidecar pattern
+- [ ] Implement JSON-RPC/IPC communication
+- [ ] Core flows: requesting, viewing, approving/denying
+- [ ] Metrics visualization in UI
+
+## Phase 7: Extensibility & Advanced Capabilities (NOT STARTED)
+- [ ] Attenuated/derived capabilities support
+- [ ] Advanced scoping (time-based, conditional)
+- [ ] Plugin system for new capability types
+- [ ] Policy-based auto-approval rules
+
+## Phase 8: Production Hardening (NOT STARTED)
+- [ ] Distribution packaging (wheels, etc.)
+- [ ] Structured logging enhancement
+- [ ] Standardized metrics export (Prometheus/OpenTelemetry)
+- [ ] Security review and hardening
+- [ ] Operator experience & error message improvements
+
+## Phase 9: LLM Integration & Real Agent Testing (NOT STARTED)
+- [ ] Test agents with local models (Ollama/LM Studio)
+- [ ] Realistic multi-step agent scenarios
+- [ ] Adversarial testing (prompt injection attempts)
+- [ ] Usability evaluation for LLM-driven requests
+
+## Phase 10: Remote / Distributed Control Plane (NOT STARTED)
+- [ ] Background service/daemon support
+- [ ] Remote agent connectivity
+- [ ] Multi-agent coordination across machines
+
+## Future / Optional
+- [ ] Native CLI Interface (secondary to Tauri)
