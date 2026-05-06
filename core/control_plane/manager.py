@@ -1,6 +1,7 @@
 import uuid
 import os
 import threading
+import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from core.models.models import CapabilityRequest, CapabilityGrant, GrantType, AuditEvent, CapabilityType
@@ -8,6 +9,7 @@ from core.control_plane.interface import ControlPlaneInterface
 from core.policy.engine import PolicyEngine
 from core.audit.logger import AuditLogger
 from core.audit.store import AuditStore
+from core.storage.sqlite_store import SQLiteStore
 
 class ControlPlaneManager(ControlPlaneInterface):
     """
@@ -15,10 +17,20 @@ class ControlPlaneManager(ControlPlaneInterface):
     Handles the lifecycle of capability grants, including evaluation, 
     validation, and revocation.
     """
-    def __init__(self, config: dict, ui_handler: Any = None):
+    def __init__(self, config: dict, ui_handler: Any = None, storage: Optional[SQLiteStore] = None):
         self.config = config
-        self.grants: Dict[str, CapabilityGrant] = {}
-        self.registered_agents: Dict[str, str] = {} # agent_id -> agent_token
+        self.lock = threading.Lock()
+        self.policy_engine = PolicyEngine(config)
+        self.audit_logger = AuditLogger()
+        self.audit_store = AuditStore()
+        self.ui_handler = ui_handler
+        self.strict_identity = config.get("strict_identity", False)
+        
+        # Persistence
+        self.storage = storage or SQLiteStore(config.get("db_path", "rudi.db"))
+        self.grants: Dict[str, CapabilityGrant] = {g.id: g for g in self.storage.load_all_grants()}
+        self.registered_agents: Dict[str, str] = self.storage.get_all_agents() # agent_id -> token_hash
+        
         self.metrics = {
             "total_requests": 0,
             "total_grants": 0,
@@ -27,35 +39,34 @@ class ControlPlaneManager(ControlPlaneInterface):
             "total_blocked": 0,
             "identity_failures": 0
         }
-        self.lock = threading.Lock()
-        self.policy_engine = PolicyEngine(config)
-        self.audit_logger = AuditLogger()
-        self.audit_store = AuditStore()
-        self.ui_handler = ui_handler
-        self.strict_identity = config.get("strict_identity", False)
+
+    def _hash_token(self, token: str) -> str:
+        return hashlib.sha256((token or "").encode()).hexdigest()
 
     def register_agent(self, agent_id: str, token: str):
+        token_hash = self._hash_token(token)
         with self.lock:
-            self.registered_agents[agent_id] = token
+            self.registered_agents[agent_id] = token_hash
+            self.storage.save_agent(agent_id, token_hash)
 
     def _verify_agent(self, agent_id: str, token: Optional[str]) -> bool:
         """
         Verify agent identity. In 'strict_identity' mode, agents must be
         registered and the token must match.
         """
-        registered_token = self.registered_agents.get(agent_id)
+        registered_hash = self.registered_agents.get(agent_id)
         
         if self.strict_identity:
-            if not registered_token:
+            if not registered_hash:
                 return False
-            return registered_token == token
+            return registered_hash == self._hash_token(token)
         
         # Backward compatibility mode
         if not self.registered_agents:
             return True
-        if not registered_token:
+        if not registered_hash:
             return True # Allow unregistered if others are registered but not this one
-        return registered_token == token
+        return registered_hash == self._hash_token(token)
 
     def get_metrics(self) -> Dict[str, Any]:
         """Expose current system metrics for observability."""
@@ -153,6 +164,7 @@ class ControlPlaneManager(ControlPlaneInterface):
         
         with self.lock:
             self.grants[grant_id] = grant
+            self.storage.save_grant(grant)
             
         self._log_event(request, "grant", "granted", {
             "grant_id": grant_id, 
@@ -177,6 +189,7 @@ class ControlPlaneManager(ControlPlaneInterface):
                         status="expired", details={"grant_id": grant_id}
                     ))
                     del self.grants[grant_id]
+                    self.storage.delete_grant(grant_id)
                     continue
 
                 # Identity and Capability match
@@ -192,8 +205,10 @@ class ControlPlaneManager(ControlPlaneInterface):
                         # Consume "Allow Once" grant
                         if grant.grant_type == GrantType.ALLOW_ONCE:
                             del self.grants[grant_id]
+                            self.storage.delete_grant(grant_id)
                         else:
                             grant.last_used_at = now
+                            self.storage.save_grant(grant)
                         
                         self.metrics["total_uses"] += 1
                         self.audit_logger.log_event(AuditEvent(
@@ -284,6 +299,7 @@ class ControlPlaneManager(ControlPlaneInterface):
                     status="success", details={"grant_id": grant_id}
                 ))
                 del self.grants[grant_id]
+                self.storage.delete_grant(grant_id)
                 return True
         return False
 
@@ -299,3 +315,7 @@ class ControlPlaneManager(ControlPlaneInterface):
             status=status, details=details
         )
         self.audit_logger.log_event(event)
+
+    def shutdown(self):
+        """Perform graceful shutdown, closing storage connections."""
+        self.storage.close()

@@ -50,12 +50,13 @@
 - [x] **Centralized Error Handling Documentation**
 - [x] **Dependency Management (requirements.txt, pyproject.toml)**
 
-## Phase 5: Persistence & State Management (NOT STARTED)
-- [ ] Add persistent storage for grants (SQLite)
-- [ ] Ability to reload active grants on startup
-- [ ] Grant expiration handling across restarts
-- [ ] Encryption for persisted sensitive grant data
-- [ ] Update Control Plane for hybrid in-memory/persisted state
+## Phase 5: Persistence & State Management (COMPLETED)
+- [x] Add persistent storage for grants (SQLite)
+- [x] Ability to reload active grants on startup
+- [x] Grant expiration handling across restarts
+- [x] Encryption for persisted sensitive grant data (Optional/Stretch)
+- [x] Update Control Plane for hybrid in-memory/persisted state
+- [x] Verification with `tests/common/test_persistence.py`
 
 ## Phase 6: Tauri Desktop Interface (NOT STARTED)
 - [ ] Separate Python core logic for sidecar pattern

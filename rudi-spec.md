@@ -1,5 +1,5 @@
 # R.U.D.I. Capabilities & Approvals System
-**Phased Requirements Specification v1.7**  
+**Phased Requirements Specification v1.8**  
 **Optimized for AI Coding Agents**  
 **Date:** May 5, 2026
 
@@ -10,7 +10,7 @@
 **CRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:**
 
 1. **Always read the full current version of this file** (`rudi-spec.md`) before planning, coding, or suggesting any changes.
-2. **Current Active Phase**: Phase 5 — Persistence & State Management.
+2. **Current Active Phase**: Phase 6 — Tauri Desktop Interface.
 3. Never implement features from future phases unless explicitly instructed.
 4. Every implementation **must** respect the Core Principles, Cross-Platform Strategy, and Foundational Requirements below.
 5. After completing work on any phase, update this spec.md with:
@@ -97,24 +97,21 @@ This model enables safe, usable background/autonomous behavior while keeping hum
 
 ---
 
-## Phase 5: Persistence & State Management (ACTIVE)
+## Phase 5: Persistence & State Management (COMPLETED)
 
 **Objective**  
 Transition R.U.D.I. from a volatile, in-memory system to a durable service that preserves grants and identity state across restarts.
 
-**Technical Requirements**
-- **Persistent Storage**: Implement SQLite storage for grants and registered agents.
-- **Schema**:
-    - `grants` table: `id` (PK), `agent_id`, `capability`, `scope` (JSON), `grant_type`, `risk_level`, `expires_at`, `metadata`.
-    - `agents` table: `agent_id` (PK), `token_hash` (SHA-256), `created_at`.
-- **Durability**: 
-    - Write-through: Persistence to DB must occur *before* grant issuance.
-    - On Startup: Load all unexpired/permanent grants from DB into memory cache.
-- **Encryption**: Support optional AES encryption (using `cryptography`) for sensitive `scope` data (like API keys or specific file paths).
+**Status: COMPLETED**
+- Implemented **SQLite persistent storage** for grants and registered agents.
+- Developed **`SQLiteStore`** with support for atomic "Write-Through" durability.
+- Added **Token Hashing (SHA-256)** to ensure agent tokens are never stored in plain text.
+- Implemented **Optional AES Encryption** for sensitive grant scope data using the `cryptography` library.
+- Verified that grants and agent registrations survive service restarts with `tests/common/test_persistence.py`.
 
 ---
 
-## Phase 6: Tauri Desktop Interface (BACKLOG)
+## Phase 6: Tauri Desktop Interface (ACTIVE)
 
 **Objective**  
 Build a modern, system-tray-based UI for management and approval.
@@ -140,6 +137,7 @@ Support advanced agentic workflows like attenuated sub-grants and dynamic plugin
 
 ## Change Log
 
+- **2026-05-05 v1.8**: Completed Phase 5. Implemented SQLite persistence, SHA-256 token hashing, and optional AES encryption for grants. Set Phase 6 as ACTIVE.
 - **2026-05-05 v1.7**: Restored truncated sections. Revised roadmap to Phases 5-10. Detailed Phase 5 Persistence requirements. Set Phase 5 as ACTIVE.
 - **2026-05-05 v1.6**: Completed Phase 4. Implemented Process Execution, Model Escalation (Token Budgets), API Call capabilities, and Permanent Grants with extra confirmation. Improved scope matching (wildcards, command prefixes).
 - **2026-05-05 v1.5**: Updated Phase 2 and Phase 3 with durability and safety enhancements.

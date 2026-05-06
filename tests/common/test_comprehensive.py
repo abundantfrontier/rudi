@@ -16,9 +16,13 @@ from adapters.platform_adapter import get_platform_adapter
 
 class TestComprehensiveEdgeCases(unittest.TestCase):
     def setUp(self):
+        self.test_db = "test_comprehensive.db"
+        if os.path.exists(self.test_db):
+            os.remove(self.test_db)
         self.config = {
             "default_deny": True,
-            "approval_timeout": 5
+            "approval_timeout": 5,
+            "db_path": self.test_db
         }
         self.ui_mock = MagicMock()
         self.cp = ControlPlaneManager(self.config, ui_handler=self.ui_mock)
@@ -26,6 +30,11 @@ class TestComprehensiveEdgeCases(unittest.TestCase):
         self.fs = self.adapter["fs"]
         self.net = self.adapter["net"]
         self.store = AuditStore()
+
+    def tearDown(self):
+        self.cp.shutdown()
+        if os.path.exists(self.test_db):
+            os.remove(self.test_db)
 
     def test_directory_vs_file_scoping(self):
         """Verify that a grant for a directory allows reading files within it."""
