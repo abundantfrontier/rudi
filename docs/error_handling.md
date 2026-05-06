@@ -18,8 +18,10 @@ This document outlines the strategy for handling various error conditions and fa
 
 ## 4. Agent Identity Failures
 - **Behavior**: If an `agent_token` is provided but does not match the registered token for that `agent_id`, the request is immediately denied and logged as a security event.
-- **Unregistered Agents**: By default, the system allows unregistered agents for backward compatibility, but this can be restricted in the configuration (`require_registration: true`).
+- **Strict Identity Mode**: When enabled (`strict_identity: true`), the system **requires** all agents to be registered. Requests from unregistered agents or missing tokens are automatically denied.
+- **Observability**: Identity failures are tracked in the system metrics as `identity_failures`.
 
-## 5. Control Plane Health
-- **Behavior**: The Control Plane is designed to be stateless regarding persistent grants (they are currently in-memory). If the Control Plane restarts, all active grants (except PERMANENT ones if they were persisted) are lost.
-- **Audit Integrity**: Audit logs are flushed to disk with `fsync` before any action is allowed, ensuring that even if the system crashes, the record of the grant or denial is preserved.
+## 5. Control Plane Health & Observability
+- **Metrics Exposure**: The Control Plane provides a `get_metrics()` method that returns real-time counters for requests, grants, denials, and resource usage.
+- **Status Reporting**: A `get_status()` method provides a high-level overview of system health and configuration (e.g., whether Strict Identity is active).
+- **Restart Behavior**: The Control Plane is currently designed to be stateless regarding in-memory grants. If the system restarts, all active session/time-boxed grants are lost. Audit integrity is maintained via `fsync` before any action is permitted.

@@ -15,9 +15,6 @@ class TestAgentIdentity(unittest.TestCase):
             scope={"path": "/tmp/test.txt"},
             purpose="Testing"
         )
-        # Should not be blocked by identity verification
-        # It might be blocked by policy, but we check if it gets past _verify_agent
-        # PolicyEngine might return 'manual_review' or 'deny'
         self.cp.register_agent("other-agent", "secret-token")
         
         # Now agent-001 is NOT registered, and there ARE registered agents
@@ -34,12 +31,7 @@ class TestAgentIdentity(unittest.TestCase):
             scope={"path": "/tmp/test.txt"},
             purpose="Testing"
         )
-        # Should pass identity verification
-        # We don't have a UI handler, so it might fail at manual_review, 
-        # but let's see if it gets past identity.
         grant = self.cp.request_capability(req)
-        # It should fail at manual_review (no ui handler) or policy denial
-        # but the denial reason in audit log would be different.
         
     def test_registered_agent_wrong_token(self):
         self.cp.register_agent("agent-001", "secret-token")
@@ -53,6 +45,49 @@ class TestAgentIdentity(unittest.TestCase):
         grant = self.cp.request_capability(req)
         self.assertIsNone(grant)
         self.assertEqual(self.cp.metrics["total_denials"], 1)
+
+    def test_strict_identity_mode(self):
+        # Enable strict mode
+        self.cp.strict_identity = True
+        
+        # 1. Unregistered agent should fail
+        req = CapabilityRequest(
+            agent_id="unregistered-agent",
+            capability=CapabilityType.FILESYSTEM_READ,
+            scope={"path": "/tmp/test.txt"},
+            purpose="Testing"
+        )
+        grant = self.cp.request_capability(req)
+        self.assertIsNone(grant)
+        self.assertEqual(self.cp.metrics["identity_failures"], 1)
+        
+        # 2. Registered agent with correct token should pass identity (but fail policy/ui in this test)
+        self.cp.register_agent("agent-001", "secret-token")
+        req = CapabilityRequest(
+            agent_id="agent-001",
+            agent_token="secret-token",
+            capability=CapabilityType.FILESYSTEM_READ,
+            scope={"path": "/tmp/test.txt"},
+            purpose="Testing"
+        )
+        grant = self.cp.request_capability(req)
+        self.assertEqual(self.cp.metrics["identity_failures"], 1) # Still 1 from previous fail
+        self.assertEqual(self.cp.metrics["total_denials"], 2)
+
+    def test_metrics_exposure(self):
+        self.cp.register_agent("agent-001", "secret-token")
+        req = CapabilityRequest(
+            agent_id="agent-001",
+            agent_token="secret-token",
+            capability=CapabilityType.FILESYSTEM_READ,
+            scope={"path": "/tmp/test.txt"},
+            purpose="Testing"
+        )
+        self.cp.request_capability(req)
+        metrics = self.cp.get_metrics()
+        self.assertIn("total_requests", metrics)
+        self.assertEqual(metrics["total_requests"], 1)
+        self.assertEqual(metrics["registered_agents_count"], 1)
 
 if __name__ == "__main__":
     unittest.main()

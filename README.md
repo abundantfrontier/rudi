@@ -43,6 +43,29 @@ rudi/
 
 ---
 
+## 🛡️ Security Features
+
+- **Strict Identity Mode**: When enabled (`strict_identity: true` in config), all agents MUST be registered with a token. Unregistered agents or invalid tokens result in immediate denial.
+- **Hierarchical Scoping**: Path-based capabilities support directory-level grants (e.g., granting `/tmp/` allows access to all sub-files).
+- **Token Budgets**: Model escalation capabilities can be bounded by stateful token limits that decrement on use.
+
+---
+
+## 📊 Observability & Metrics
+
+The Control Plane exposes real-time metrics for system monitoring:
+
+- `total_requests`: Number of capability requests received.
+- `total_grants`: Number of approved grants.
+- `total_denials`: Number of denied requests.
+- `total_uses`: Number of successful resource accesses.
+- `total_blocked`: Number of blocked resource accesses.
+- `identity_failures`: Number of requests with invalid or missing agent tokens.
+
+Operators can query this state via `cp.get_metrics()` or check overall health via `cp.get_status()`.
+
+---
+
 ## 🛡️ Capabilities Supported (v1)
 
 | Capability | Description | Scope Support |

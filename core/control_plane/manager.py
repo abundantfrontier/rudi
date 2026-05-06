@@ -24,22 +24,55 @@ class ControlPlaneManager(ControlPlaneInterface):
             "total_grants": 0,
             "total_denials": 0,
             "total_uses": 0,
-            "total_blocked": 0
+            "total_blocked": 0,
+            "identity_failures": 0
         }
         self.lock = threading.Lock()
         self.policy_engine = PolicyEngine(config)
         self.audit_logger = AuditLogger()
         self.audit_store = AuditStore()
         self.ui_handler = ui_handler
+        self.strict_identity = config.get("strict_identity", False)
 
     def register_agent(self, agent_id: str, token: str):
         with self.lock:
             self.registered_agents[agent_id] = token
 
     def _verify_agent(self, agent_id: str, token: Optional[str]) -> bool:
+        """
+        Verify agent identity. In 'strict_identity' mode, agents must be
+        registered and the token must match.
+        """
+        registered_token = self.registered_agents.get(agent_id)
+        
+        if self.strict_identity:
+            if not registered_token:
+                return False
+            return registered_token == token
+        
+        # Backward compatibility mode
         if not self.registered_agents:
-            return True # If no agents registered, skip verification for now (backward compatibility)
-        return self.registered_agents.get(agent_id) == token
+            return True
+        if not registered_token:
+            return True # Allow unregistered if others are registered but not this one
+        return registered_token == token
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Expose current system metrics for observability."""
+        with self.lock:
+            return {
+                **self.metrics,
+                "active_grants_count": len(self.grants),
+                "registered_agents_count": len(self.registered_agents)
+            }
+
+    def get_status(self) -> Dict[str, Any]:
+        """Returns a high-level health and status report."""
+        return {
+            "status": "healthy",
+            "strict_identity": self.strict_identity,
+            "active_grants": len(self.get_active_grants())
+        }
 
     def request_capability(self, request: CapabilityRequest) -> Optional[CapabilityGrant]:
         """
@@ -49,6 +82,7 @@ class ControlPlaneManager(ControlPlaneInterface):
         
         # Verify Agent Identity
         if not self._verify_agent(request.agent_id, request.agent_token):
+            self.metrics["identity_failures"] += 1
             self._log_event(request, "denial", "invalid_agent_token")
             return None
 
