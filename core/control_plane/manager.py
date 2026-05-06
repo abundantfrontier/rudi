@@ -18,16 +18,40 @@ class ControlPlaneManager(ControlPlaneInterface):
     def __init__(self, config: dict, ui_handler: Any = None):
         self.config = config
         self.grants: Dict[str, CapabilityGrant] = {}
+        self.registered_agents: Dict[str, str] = {} # agent_id -> agent_token
+        self.metrics = {
+            "total_requests": 0,
+            "total_grants": 0,
+            "total_denials": 0,
+            "total_uses": 0,
+            "total_blocked": 0
+        }
         self.lock = threading.Lock()
         self.policy_engine = PolicyEngine(config)
         self.audit_logger = AuditLogger()
         self.audit_store = AuditStore()
         self.ui_handler = ui_handler
 
+    def register_agent(self, agent_id: str, token: str):
+        with self.lock:
+            self.registered_agents[agent_id] = token
+
+    def _verify_agent(self, agent_id: str, token: Optional[str]) -> bool:
+        if not self.registered_agents:
+            return True # If no agents registered, skip verification for now (backward compatibility)
+        return self.registered_agents.get(agent_id) == token
+
     def request_capability(self, request: CapabilityRequest) -> Optional[CapabilityGrant]:
         """
         Evaluate and potentially grant a requested capability.
         """
+        self.metrics["total_requests"] += 1
+        
+        # Verify Agent Identity
+        if not self._verify_agent(request.agent_id, request.agent_token):
+            self._log_event(request, "denial", "invalid_agent_token")
+            return None
+
         decision = self.policy_engine.evaluate(request)
         
         if decision == "deny":
@@ -137,6 +161,7 @@ class ControlPlaneManager(ControlPlaneInterface):
                         else:
                             grant.last_used_at = now
                         
+                        self.metrics["total_uses"] += 1
                         self.audit_logger.log_event(AuditEvent(
                             agent_id=agent_id, event_type="use",
                             action=capability_type, resource=str(scope),
@@ -144,6 +169,7 @@ class ControlPlaneManager(ControlPlaneInterface):
                         ))
                         return True
         
+        self.metrics["total_blocked"] += 1
         self.audit_logger.log_event(AuditEvent(
             agent_id=agent_id, event_type="use",
             action=capability_type, resource=str(scope),
@@ -228,6 +254,11 @@ class ControlPlaneManager(ControlPlaneInterface):
         return False
 
     def _log_event(self, request: CapabilityRequest, event_type: str, status: str, details: Optional[Dict[str, Any]] = None):
+        if event_type == "grant":
+            self.metrics["total_grants"] += 1
+        elif event_type == "denial":
+            self.metrics["total_denials"] += 1
+
         event = AuditEvent(
             agent_id=request.agent_id, event_type=event_type,
             action=request.capability, resource=str(request.scope),

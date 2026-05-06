@@ -43,6 +43,10 @@
 - [x] Permanent grants with extra confirmation
 - [x] Verification with `tests/common/test_phase4.py`
 
-## Phase 5: Post-v1 Extensibility (IN PROGRESS)
+## Phase 5: Post-v1 Extensibility & Refinements (IN PROGRESS)
+- [x] **[Refinement] Agent Identity Verification (Token-based)**
+- [x] **[Refinement] Control Plane Metrics & Observability**
+- [x] **[Refinement] Centralized Error Handling Documentation**
+- [x] **[Refinement] Dependency Management (requirements.txt, pyproject.toml)**
 - [ ] Attenuated / derived capabilities
 - [ ] Finer-grained scoping

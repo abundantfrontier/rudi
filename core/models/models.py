@@ -19,6 +19,7 @@ class GrantType(str, Enum):
 
 class CapabilityRequest(BaseModel):
     agent_id: str
+    agent_token: Optional[str] = None  # For cryptographic binding/verification
     capability: CapabilityType
     scope: Dict[str, Any]  # e.g., {"path": "/tmp/test.txt"}
     purpose: str
