@@ -79,6 +79,19 @@ Operators can query this state via `cp.get_metrics()` or check overall health vi
 
 ---
 
+## 🤖 For Developers & AI Agents
+
+This repository is optimized for collaboration with AI coding agents.
+
+- **Source of Truth**: Always refer to [rudi-spec.md](rudi-spec.md) for current requirements, architectural constraints, and active development phases.
+- **Workflow**: 
+    1. Read `rudi-spec.md` first.
+    2. Focus only on the **Current Active Phase**.
+    3. Update the spec and progress docs upon completion.
+- **Testing**: Run all tests with `export PYTHONPATH=$PYTHONPATH:. && python3 tests/common/test_comprehensive.py`.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -89,13 +102,15 @@ Operators can query this state via `cp.get_metrics()` or check overall health vi
 ```bash
 git clone https://github.com/your-repo/rudi.git
 cd rudi
-pip install -r requirements.txt  # If requirements.txt is provided
+pip install -r requirements.txt
 ```
 
 ### Running Tests
 Verify the installation and platform compatibility:
 ```bash
-pytest tests/common/test_comprehensive.py
+# Ensure project root is in PYTHONPATH
+export PYTHONPATH=$PYTHONPATH:.
+python3 tests/common/test_comprehensive.py
 ```
 
 ---
@@ -138,9 +153,9 @@ R.U.D.I. maintains an `audit.log` in the root directory. Every interaction is re
 ---
 
 ## 🗺️ Roadmap
-- **Phase 5**: Post-v1 Extensibility (Plugin system for new capabilities).
-- **Remote Control Plane**: Managing capabilities across multiple machines.
-- **Advanced Sandboxing**: Deeper integration with macOS `sandbox-exec` and Linux `namespaces/cgroups`.
+- **Phase 5**: Persistence & State Management (Active).
+- **Phase 6**: Tauri Desktop Interface.
+- **Phase 7**: Extensibility & Advanced Capabilities.
 
 ---
 
