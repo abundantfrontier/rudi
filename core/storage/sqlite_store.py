@@ -2,7 +2,7 @@ import sqlite3
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from core.models.models import CapabilityGrant, CapabilityType, GrantType, DelegatedTask
+from core.models.models import CapabilityGrant, CapabilityType, GrantType, DelegatedTask, Persona, Project, HistorySummary
 
 try:
     from cryptography.fernet import Fernet
@@ -30,6 +30,7 @@ class SQLiteStore:
                 risk_level TEXT,
                 parent_id TEXT,
                 constraints TEXT,
+                project_id TEXT,
                 expires_at TEXT,
                 granted_at TEXT,
                 last_used_at TEXT,
@@ -43,6 +44,8 @@ class SQLiteStore:
             cursor.execute("ALTER TABLE grants ADD COLUMN parent_id TEXT")
         if 'constraints' not in columns:
             cursor.execute("ALTER TABLE grants ADD COLUMN constraints TEXT")
+        if 'project_id' not in columns:
+            cursor.execute("ALTER TABLE grants ADD COLUMN project_id TEXT")
 
         # Tasks table
         cursor.execute("""
@@ -50,11 +53,51 @@ class SQLiteStore:
                 id TEXT PRIMARY KEY,
                 label TEXT,
                 instruction TEXT,
+                project_id TEXT,
                 schedule_type TEXT,
                 target_time TEXT,
                 interval_seconds INTEGER,
                 last_run_at TEXT,
                 next_run_at TEXT,
+                metadata TEXT
+            )
+        """)
+        # Migration for tasks
+        cursor.execute("PRAGMA table_info(tasks)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'project_id' not in columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN project_id TEXT")
+
+        # Personas table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS personas (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                description TEXT,
+                metadata TEXT
+            )
+        """)
+
+        # Projects table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY,
+                persona_id TEXT,
+                name TEXT,
+                description TEXT,
+                metadata TEXT
+            )
+        """)
+
+        # History Summaries table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS history_summaries (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                agent_id TEXT,
+                timestamp TEXT,
+                summary TEXT,
+                content_hash TEXT,
                 metadata TEXT
             )
         """)
@@ -87,8 +130,8 @@ class SQLiteStore:
         cursor.execute("""
             INSERT OR REPLACE INTO grants (
                 id, agent_id, capability, scope, grant_type, 
-                risk_level, parent_id, constraints, expires_at, granted_at, last_used_at, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                risk_level, parent_id, constraints, project_id, expires_at, granted_at, last_used_at, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             grant.id,
             grant.agent_id,
@@ -98,6 +141,7 @@ class SQLiteStore:
             grant.risk_level,
             grant.parent_id,
             json.dumps(grant.constraints) if grant.constraints else None,
+            grant.project_id,
             grant.expires_at.isoformat() if grant.expires_at else None,
             grant.granted_at.isoformat(),
             grant.last_used_at.isoformat() if grant.last_used_at else None,
@@ -132,6 +176,7 @@ class SQLiteStore:
                 scope=scope,
                 grant_type=GrantType(row['grant_type']),
                 risk_level=row['risk_level'],
+                project_id=row['project_id'],
                 parent_id=row['parent_id'],
                 constraints=json.loads(row['constraints']) if row['constraints'] else None,
                 expires_at=expires_at,
@@ -165,13 +210,14 @@ class SQLiteStore:
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO tasks (
-                id, label, instruction, schedule_type, target_time, 
+                id, label, instruction, project_id, schedule_type, target_time, 
                 interval_seconds, last_run_at, next_run_at, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             task.id,
             task.label,
             task.instruction,
+            task.project_id,
             task.schedule_type,
             task.target_time.isoformat() if task.target_time else None,
             task.interval_seconds,
@@ -199,6 +245,7 @@ class SQLiteStore:
                 id=row['id'],
                 label=row['label'],
                 instruction=row['instruction'],
+                project_id=row['project_id'],
                 schedule_type=row['schedule_type'],
                 target_time=target_time,
                 interval_seconds=row['interval_seconds'],
@@ -208,3 +255,94 @@ class SQLiteStore:
             )
             tasks.append(task)
         return tasks
+
+    # --- Persona CRUD ---
+    def save_persona(self, persona: Persona):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO personas (id, name, description, metadata)
+            VALUES (?, ?, ?, ?)
+        """, (persona.id, persona.name, persona.description, json.dumps(persona.metadata)))
+        self.conn.commit()
+
+    def load_all_personas(self) -> List[Persona]:
+        personas = []
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM personas")
+        for row in cursor.fetchall():
+            personas.append(Persona(
+                id=row['id'],
+                name=row['name'],
+                description=row['description'],
+                metadata=json.loads(row['metadata'])
+            ))
+        return personas
+
+    # --- Project CRUD ---
+    def save_project(self, project: Project):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO projects (id, persona_id, name, description, metadata)
+            VALUES (?, ?, ?, ?, ?)
+        """, (project.id, project.persona_id, project.name, project.description, json.dumps(project.metadata)))
+        self.conn.commit()
+
+    def load_projects(self, persona_id: Optional[str] = None) -> List[Project]:
+        projects = []
+        cursor = self.conn.cursor()
+        if persona_id:
+            cursor.execute("SELECT * FROM projects WHERE persona_id = ?", (persona_id,))
+        else:
+            cursor.execute("SELECT * FROM projects")
+        for row in cursor.fetchall():
+            projects.append(Project(
+                id=row['id'],
+                persona_id=row['persona_id'],
+                name=row['name'],
+                description=row['description'],
+                metadata=json.loads(row['metadata'])
+            ))
+        return projects
+
+    # --- History Summary CRUD ---
+    def save_history_summary(self, summary: HistorySummary):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO history_summaries (
+                id, project_id, agent_id, timestamp, summary, content_hash, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            summary.id, summary.project_id, summary.agent_id, 
+            summary.timestamp.isoformat(), summary.summary, 
+            summary.content_hash, json.dumps(summary.metadata)
+        ))
+        self.conn.commit()
+
+    def query_history(self, project_id: str, query: Optional[str] = None, limit: int = 50) -> List[HistorySummary]:
+        results = []
+        cursor = self.conn.cursor()
+        if query:
+            # Simple keyword match for now
+            cursor.execute("""
+                SELECT * FROM history_summaries 
+                WHERE project_id = ? AND summary LIKE ? 
+                ORDER BY timestamp DESC LIMIT ?
+            """, (project_id, f"%{query}%", limit))
+        else:
+            cursor.execute("""
+                SELECT * FROM history_summaries 
+                WHERE project_id = ? 
+                ORDER BY timestamp DESC LIMIT ?
+            """, (project_id, limit))
+        
+        for row in cursor.fetchall():
+            results.append(HistorySummary(
+                id=row['id'],
+                project_id=row['project_id'],
+                agent_id=row['agent_id'],
+                timestamp=datetime.fromisoformat(row['timestamp']),
+                summary=row['summary'],
+                content_hash=row['content_hash'],
+                metadata=json.loads(row['metadata'])
+            ))
+        return results

@@ -40,8 +40,9 @@ Agent: "The hosts file contains..."
 """
 
 class ResearchAgent:
-    def __init__(self, agent_id: str):
+    def __init__(self, agent_id: str, project_id: str = "default"):
         self.agent_id = agent_id
+        self.project_id = project_id
         self.client = ControlPlaneClient()
         self.history = []
 
@@ -67,6 +68,14 @@ class ResearchAgent:
             try:
                 # Attempt to parse as a command
                 data = json.loads(response_text)
+                
+                # Broadcast thought to UI
+                if "thought" in data:
+                    await self.client._call("system.broadcast_thought", {
+                        "agent_id": self.agent_id,
+                        "thought": data["thought"]
+                    })
+
                 if data.get("command") == "request_capability":
                     print(f"[Agent] Decision: {data['thought']}")
                     print(f"[Agent] Requesting {data['capability']} for {data['scope']}")
@@ -76,7 +85,8 @@ class ResearchAgent:
                         agent_id=self.agent_id,
                         capability=CapabilityType(data['capability']),
                         scope=data['scope'],
-                        purpose=data['purpose']
+                        purpose=data['purpose'],
+                        project_id=self.project_id
                     )
                     grant = await self.client.request_capability(req)
                     
@@ -93,12 +103,23 @@ class ResearchAgent:
                     print("[Agent] Action successful. Feeding result back...")
                     prompt = f"Result of {data['capability']} on {data['scope']}:\n{result.get('content') or result.get('status')}\n\nContinue with the task."
                 else:
-                    # Not a command, treat as final answer
+                    # Final answer received
                     print(f"\n--- FINAL ANSWER ---\n{response_text}\n")
+                    # Save to Semantic History
+                    await self.client._call("history.add", {
+                        "project_id": self.project_id,
+                        "agent_id": self.agent_id,
+                        "summary": response_text[:500] # Truncated summary
+                    })
                     break
-            except json.JSONDecodeError:
-                # LLM outputted direct text (final answer)
+            except (json.JSONDecodeError, KeyError):
+                # Final answer
                 print(f"\n--- FINAL ANSWER ---\n{response_text}\n")
+                await self.client._call("history.add", {
+                    "project_id": self.project_id,
+                    "agent_id": self.agent_id,
+                    "summary": response_text[:500]
+                })
                 break
             except Exception as e:
                 print(f"ERROR in agent loop: {e}")
@@ -107,15 +128,14 @@ class ResearchAgent:
         await self.client.close()
 
 async def main():
-    import sys
-    # Use /etc/hosts as a standard research target
-    # Note: On macOS, this might trigger a real UI popup if you run rudi-server and the Tauri UI
-    task = "Tell me what localhost is mapped to in /etc/hosts"
-    if len(sys.argv) > 1:
-        task = sys.argv[1]
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("task", type=str, nargs="?", default="Tell me what localhost is mapped to in /etc/hosts")
+    parser.add_argument("--project", type=str, default="default")
+    args = parser.parse_args()
         
-    agent = ResearchAgent(f"researcher-{uuid.uuid4().hex[:4]}")
-    await agent.run(task)
+    agent = ResearchAgent(f"researcher-{uuid.uuid4().hex[:4]}", project_id=args.project)
+    await agent.run(args.task)
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -142,6 +142,9 @@ class ControlPlaneServer:
                 result = "UI Registered"
             elif method == "system.pull_model":
                 result = await self.handle_pull_model(params)
+            elif method == "system.broadcast_thought":
+                await self.broadcast_thought(params)
+                result = {"status": "broadcasted"}
             elif method == "llm.preload":
                 result = await self.handle_llm_preload(params)
             elif method == "llm.unload":
@@ -160,8 +163,27 @@ class ControlPlaneServer:
                 result = [g.model_dump(mode='json') for g in self.manager.get_active_grants(params.get("agent_id"))]
             elif method == "metrics.get":
                 result = self.manager.get_metrics()
+            elif method == "persona.create":
+                p = self.manager.create_persona(params.get("name"), params.get("description"))
+                result = p.model_dump(mode='json')
+            elif method == "persona.list":
+                result = [p.model_dump(mode='json') for p in self.manager.list_personas()]
+            elif method == "project.create":
+                p = self.manager.create_project(params.get("persona_id"), params.get("name"), params.get("description"))
+                result = p.model_dump(mode='json')
+            elif method == "project.list":
+                result = [p.model_dump(mode='json') for p in self.manager.list_projects(params.get("persona_id"))]
+            elif method == "history.add":
+                self.manager.add_history_summary(
+                    params.get("project_id"), params.get("agent_id"), 
+                    params.get("summary"), params.get("metadata", {})
+                )
+                result = {"status": "success"}
+            elif method == "history.query":
+                result = [s.model_dump(mode='json') for s in self.manager.query_history(params.get("project_id"), params.get("query"))]
             elif method == "task.list":
-                result = [t.model_dump(mode='json') for t in self.tasks.values()]
+                project_id = params.get("project_id")
+                result = [t.model_dump(mode='json') for t in self.tasks.values() if not project_id or t.project_id == project_id]
             elif method == "task.save":
                 result = await self.handle_task_save(params)
             elif method == "task.delete":
@@ -188,6 +210,19 @@ class ControlPlaneServer:
             except Exception as e:
                 logger.error(f"Failed to broadcast update: {e}")
                 self.ui_connection = None
+
+    async def broadcast_thought(self, params: Dict[str, Any]):
+        if self.ui_connection:
+            notification = {
+                "jsonrpc": "2.0",
+                "method": "llm.thought",
+                "params": params
+            }
+            try:
+                self.ui_connection.write((json.dumps(notification) + "\n").encode())
+                await self.ui_connection.drain()
+            except Exception as e:
+                logger.error(f"Failed to broadcast thought: {e}")
 
     async def handle_capability_request(self, params: Dict[str, Any]) -> Any:
         req = CapabilityRequest(**params)
@@ -286,7 +321,7 @@ class ControlPlaneServer:
         import sys
         try:
             # We use sys.executable to ensure we use the same python interpreter
-            cmd = [sys.executable, "examples/research_agent.py", task.instruction]
+            cmd = [sys.executable, "examples/research_agent.py", task.instruction, "--project", task.project_id]
             # Run in background
             subprocess.Popen(cmd, env={**os.environ, "PYTHONPATH": os.getcwd()})
             
@@ -314,12 +349,13 @@ class ControlPlaneServer:
     async def handle_capability_execute(self, params: Dict[str, Any]) -> Any:
         agent_id = params.get("agent_id")
         action = params.get("action")
+        project_id = params.get("project_id")
         args = params.get("args", {})
 
         # 1. Check for Plugins
         if action in self.plugins:
             plugin = self.plugins[action]
-            if not self.manager.validate_grant(agent_id, action, args):
+            if not self.manager.validate_grant(agent_id, action, args, project_id=project_id):
                 raise JSONRPCError(-32000, f"R.U.D.I. blocked {action}: No valid grant.")
             try:
                 result = plugin.execute(agent_id, args)
@@ -334,16 +370,16 @@ class ControlPlaneServer:
         except ValueError:
             raise JSONRPCError(-32602, f"Invalid action: {action}")
 
-        # Execution logic - The adapters internally call manager.validate_grant()
+        # Execution logic - The handlers/adapters internally call manager.validate_grant()
         try:
             if cap_type in [CapabilityType.FILESYSTEM_READ, CapabilityType.FILESYSTEM_WRITE]:
-                res = self._execute_fs(agent_id, action, args)
+                res = self._execute_fs(agent_id, action, args, project_id=project_id)
             elif cap_type == CapabilityType.NETWORK_CONNECT:
-                res = self._execute_net(agent_id, action, args)
+                res = self._execute_net(agent_id, action, args, project_id=project_id)
             elif cap_type == CapabilityType.NETWORK_HTTP:
-                res = await self._execute_http(agent_id, action, args)
+                res = await self._execute_http(agent_id, action, args, project_id=project_id)
             elif cap_type == CapabilityType.PROCESS_EXECUTE:
-                res = self._execute_proc(agent_id, action, args)
+                res = self._execute_proc(agent_id, action, args, project_id=project_id)
             else:
                 raise JSONRPCError(-32601, f"Execution not implemented for: {action}")
             
@@ -355,27 +391,28 @@ class ControlPlaneServer:
             logger.error(f"Execution error: {e}")
             raise JSONRPCError(-32603, f"Internal execution error: {e}")
 
-    def _execute_fs(self, agent_id: str, action: str, args: Dict[str, Any]) -> Any:
+    def _execute_fs(self, agent_id: str, action: str, args: Dict[str, Any], project_id: Optional[str] = None) -> Any:
         fs = self.adapters["fs"]
         path = args.get("path")
         if action == CapabilityType.FILESYSTEM_READ:
-            return {"content": fs.read_file(agent_id, path)}
+            return {"content": fs.read_file(agent_id, path, project_id=project_id)}
         elif action == CapabilityType.FILESYSTEM_WRITE:
-            fs.write_file(agent_id, path, args.get("content", ""))
+            fs.write_file(agent_id, path, args.get("content", ""), project_id=project_id)
             return {"status": "success"}
 
-    def _execute_net(self, agent_id: str, action: str, args: Dict[str, Any]) -> Any:
+    def _execute_net(self, agent_id: str, action: str, args: Dict[str, Any], project_id: Optional[str] = None) -> Any:
         net = self.adapters["net"]
-        success = net.connect(agent_id, args.get("host"), args.get("port"))
+        success = net.connect(agent_id, args.get("host"), args.get("port"), project_id=project_id)
         if not success:
             raise JSONRPCError(-32000, f"R.U.D.I. blocked network connection to {args.get('host')}:{args.get('port')}")
         return {"success": success}
 
-    def _execute_proc(self, agent_id: str, action: str, args: Dict[str, Any]) -> Any:
+
+    def _execute_proc(self, agent_id: str, action: str, args: Dict[str, Any], project_id: Optional[str] = None) -> Any:
         proc = self.adapters["proc"]
         return proc.execute(agent_id, args.get("command"))
 
-    async def _execute_http(self, agent_id: str, action: str, args: Dict[str, Any]) -> Any:
+    async def _execute_http(self, agent_id: str, action: str, args: Dict[str, Any], project_id: Optional[str] = None) -> Any:
         url = args.get("url")
         method = args.get("method", "GET").upper()
         headers = args.get("headers", {})
@@ -385,7 +422,7 @@ class ControlPlaneServer:
             raise JSONRPCError(-32602, "Missing 'url' argument")
 
         # Manager validation (using args as scope)
-        if not self.manager.validate_grant(agent_id, action, args):
+        if not self.manager.validate_grant(agent_id, action, args, project_id=project_id):
             raise JSONRPCError(-32000, f"R.U.D.I. blocked HTTP {method} to {url}: No valid grant.")
 
         import httpx

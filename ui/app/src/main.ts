@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 // State
 let activeApprovalId: string | null = null;
 let editingTaskId: string | null = null;
+let currentPersonaId: string | null = null;
+let currentProjectId: string | null = null;
 
 // UI Elements
 const els = {
@@ -40,6 +42,32 @@ const els = {
   btnUnloadModel: document.querySelector("#btn-unload-model") as HTMLButtonElement,
   modelStatus: document.querySelector("#model-status") as HTMLElement,
   ramStatus: document.querySelector("#ram-status") as HTMLElement,
+
+  // Phase 11 Elements
+  selectPersona: document.querySelector("#select-persona") as HTMLSelectElement,
+  selectProject: document.querySelector("#select-project") as HTMLSelectElement,
+  btnNewProject: document.querySelector("#btn-new-project") as HTMLButtonElement,
+  thoughtFeed: document.querySelector("#thought-feed") as HTMLElement,
+  historyList: document.querySelector("#history-list") as HTMLElement,
+  historyQuery: document.querySelector("#history-query") as HTMLInputElement,
+  projectModal: document.querySelector("#project-modal") as HTMLElement,
+  projectName: document.querySelector("#project-name") as HTMLInputElement,
+  projectDesc: document.querySelector("#project-desc") as HTMLTextAreaElement,
+  btnProjectSave: document.querySelector("#btn-project-save") as HTMLButtonElement,
+  btnProjectCancel: document.querySelector("#btn-project-cancel") as HTMLButtonElement,
+
+  personaModal: document.querySelector("#persona-modal") as HTMLElement,
+  personaName: document.querySelector("#persona-name") as HTMLInputElement,
+  personaDesc: document.querySelector("#persona-desc") as HTMLTextAreaElement,
+  btnNewPersona: document.querySelector("#btn-new-persona") as HTMLButtonElement,
+  btnPersonaSave: document.querySelector("#btn-persona-save") as HTMLButtonElement,
+  btnPersonaCancel: document.querySelector("#btn-persona-cancel") as HTMLButtonElement,
+
+  // Tab Elements
+  tabBtnInteraction: document.querySelector("#tab-btn-interaction") as HTMLButtonElement,
+  tabBtnMonitoring: document.querySelector("#tab-btn-monitoring") as HTMLButtonElement,
+  tabInteraction: document.querySelector("#tab-interaction") as HTMLElement,
+  tabMonitoring: document.querySelector("#tab-monitoring") as HTMLElement,
 };
 
 async function refreshData() {
@@ -47,9 +75,16 @@ async function refreshData() {
     await invoke("send_rpc", { method: "metrics.get", params: {} });
     await invoke("send_rpc", { method: "grants.list", params: {} });
     await invoke("send_rpc", { method: "task.list", params: {} });
+    if (currentProjectId) {
+      await invoke("send_rpc", { method: "history.query", params: { project_id: currentProjectId, query: els.historyQuery.value } });
+    }
   } catch (e) {
     console.error("Refresh error:", e);
   }
+}
+
+async function refreshContext() {
+    await invoke("send_rpc", { method: "persona.list", params: {} });
 }
 
 function updateMetrics(metrics: any) {
@@ -88,26 +123,78 @@ function updateTasks(tasks: any[]) {
       <div class="task-actions">
         <button class="btn-small btn-primary" onclick="window.runTask('${t.id}')">Run Now</button>
         <button class="btn-small" onclick="window.editTask('${t.id}')">Edit</button>
-        <button class="btn-small btn-danger" onclick="window.deleteTask('${t.id}')">Delete</button>
       </div>
     `;
     els.taskGrid.appendChild(card);
   });
 }
 
-// Window Globals for dynamic HTML
+function updatePersonas(personas: any[]) {
+    els.selectPersona.innerHTML = "";
+    personas.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        els.selectPersona.appendChild(opt);
+    });
+    if (personas.length > 0 && !currentPersonaId) {
+        currentPersonaId = personas[0].id;
+        updateProjectButtonLabel(personas[0].name);
+        invoke("send_rpc", { method: "project.list", params: { persona_id: currentPersonaId } });
+    }
+}
+
+function updateProjectButtonLabel(personaName: string) {
+    els.btnNewProject.textContent = `+ Project to ${personaName}`;
+}
+
+function updateProjects(projects: any[]) {
+    els.selectProject.innerHTML = "";
+    projects.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        els.selectProject.appendChild(opt);
+    });
+    if (projects.length > 0 && !currentProjectId) {
+        currentProjectId = projects[0].id;
+        refreshData();
+    }
+}
+
+function updateHistory(history: any[]) {
+    els.historyList.innerHTML = history.length ? "" : '<div class="empty-state">No history found.</div>';
+    history.forEach(s => {
+        const item = document.createElement("div");
+        item.className = "history-item";
+        item.innerHTML = `
+            <div class="timestamp">${new Date(s.timestamp).toLocaleString()}</div>
+            <div class="summary">${s.summary}</div>
+        `;
+        els.historyList.appendChild(item);
+    });
+}
+
+function addThought(agentId: string, thought: string) {
+    const firstThought = els.thoughtFeed.querySelector(".empty-state");
+    if (firstThought) firstThought.remove();
+
+    const card = document.createElement("div");
+    card.className = "thought-card";
+    card.innerHTML = `
+        <div class="agent-id">${agentId}</div>
+        <div class="thought">${thought}</div>
+    `;
+    els.thoughtFeed.prepend(card);
+}
+
+// Window Globals
 (window as any).revokeGrant = async (id: string) => {
   await invoke("send_rpc", { method: "grant.revoke", params: { grant_id: id } });
 };
 
 (window as any).runTask = async (id: string) => {
-  await invoke("send_rpc", { method: "task.run", params: { task_id: id } });
-};
-
-(window as any).deleteTask = async (id: string) => {
-  if (confirm("Delete this task?")) {
-    await invoke("send_rpc", { method: "task.delete", params: { task_id: id } });
-  }
+  await invoke("send_rpc", { method: "task.run", params: { task_id: id, project_id: currentProjectId } });
 };
 
 (window as any).editTask = async (id: string) => {
@@ -127,44 +214,36 @@ async function handleRpcMessage(msg: any) {
       <p><b>Scope:</b> <pre>${JSON.stringify(req.scope, null, 2)}</pre></p>
     `;
     els.approvalModal.classList.remove("hidden");
+  } else if (msg.method === "llm.thought") {
+    addThought(msg.params.agent_id, msg.params.thought);
   } else if (msg.method === "grant.updated") {
     await refreshData();
   } else if (msg.result) {
-    if (typeof msg.result === "object" && "status" in msg.result) {
-      // Model results
-      if (msg.result.status === "success") {
-        if (msg.result.message?.includes("RAM")) {
+    const res = msg.result;
+    if (typeof res === "object" && "total_requests" in res) {
+      updateMetrics(res);
+      els.status.textContent = "Online";
+      els.status.classList.add("online");
+    } else if (Array.isArray(res)) {
+      if (res.length > 0) {
+          if ("instruction" in res[0]) updateTasks(res);
+          else if ("persona_id" in res[0]) updateProjects(res);
+          else if ("summary" in res[0]) updateHistory(res);
+          else if ("capability" in res[0]) updateGrants(res);
+          else if ("name" in res[0]) updatePersonas(res);
+      }
+    } else if (typeof res === "object" && "status" in res) {
+        if (res.message?.includes("RAM")) {
             els.ramStatus.textContent = "LOADED";
             els.ramStatus.classList.add("loaded");
             els.btnLoadModel.classList.add("hidden");
             els.btnUnloadModel.classList.remove("hidden");
-            els.modelStatus.textContent = "Model weights are warm and ready for instant responses.";
-        } else if (msg.result.message?.includes("unloaded")) {
+        } else if (res.message?.includes("unloaded")) {
             els.ramStatus.textContent = "NOT LOADED";
             els.ramStatus.classList.remove("loaded");
             els.btnLoadModel.classList.remove("hidden");
             els.btnUnloadModel.classList.add("hidden");
-            els.modelStatus.textContent = "RAM cleared. Next task will lazy-load.";
-        } else {
-            els.modelStatus.textContent = "Model downloaded successfully!";
-            els.modelStatus.className = "status-text success";
         }
-      } else {
-        els.modelStatus.textContent = "Action failed.";
-        els.modelStatus.className = "status-text error";
-      }
-      els.btnPullModel.disabled = false;
-      els.btnLoadModel.disabled = false;
-    } else if (typeof msg.result === "object" && "total_requests" in msg.result) {
-      updateMetrics(msg.result);
-      els.status.textContent = "Online";
-      els.status.classList.add("online");
-    } else if (Array.isArray(msg.result)) {
-      if (msg.result.length > 0 && "instruction" in msg.result[0]) {
-        updateTasks(msg.result);
-      } else {
-        updateGrants(msg.result);
-      }
     }
   }
 }
@@ -174,7 +253,30 @@ window.addEventListener("DOMContentLoaded", async () => {
     handleRpcMessage(event.payload);
   });
 
-  // Task Modal Toggles
+  // Context Selection
+  els.selectPersona.onchange = () => {
+      currentPersonaId = els.selectPersona.value;
+      const personaName = els.selectPersona.options[els.selectPersona.selectedIndex].text;
+      updateProjectButtonLabel(personaName);
+      invoke("send_rpc", { method: "project.list", params: { persona_id: currentPersonaId } });
+  };
+  els.selectProject.onchange = () => {
+      currentProjectId = els.selectProject.value;
+      refreshData();
+  };
+  els.btnNewProject.onclick = () => els.projectModal.classList.remove("hidden");
+  els.btnProjectCancel.onclick = () => els.projectModal.classList.add("hidden");
+  els.btnProjectSave.onclick = async () => {
+      if (!currentPersonaId) return;
+      await invoke("send_rpc", { 
+          method: "project.create", 
+          params: { persona_id: currentPersonaId, name: els.projectName.value, description: els.projectDesc.value } 
+      });
+      els.projectModal.classList.add("hidden");
+      await invoke("send_rpc", { method: "project.list", params: { persona_id: currentPersonaId } });
+  };
+
+  // Task Modal
   els.btnAddTask.onclick = () => {
     editingTaskId = null;
     els.taskModalTitle.textContent = "Create New Task";
@@ -182,55 +284,18 @@ window.addEventListener("DOMContentLoaded", async () => {
     els.taskInstruction.value = "";
     els.taskModal.classList.remove("hidden");
   };
-
   els.btnTaskCancel.onclick = () => els.taskModal.classList.add("hidden");
-
-  els.btnPullModel.onclick = async () => {
-    const model = els.pullModelId.value;
-    if (!model) return;
-    els.btnPullModel.disabled = true;
-    els.modelStatus.textContent = `Pulling ${model}... (this may take several minutes)`;
-    els.modelStatus.className = "status-text";
-    try {
-      await invoke("send_rpc", { method: "system.pull_model", params: { model } });
-    } catch (e) {
-      els.modelStatus.textContent = `Error: ${e}`;
-      els.modelStatus.className = "status-text error";
-      els.btnPullModel.disabled = false;
-    }
-  };
-
-  els.btnLoadModel.onclick = async () => {
-    const model = els.pullModelId.value;
-    els.btnLoadModel.disabled = true;
-    els.modelStatus.textContent = "Loading model into RAM...";
-    try {
-      await invoke("send_rpc", { method: "llm.preload", params: { model: model || undefined } });
-    } catch (e) {
-      els.modelStatus.textContent = `Error loading: ${e}`;
-      els.btnLoadModel.disabled = false;
-    }
-  };
-
-  els.btnUnloadModel.onclick = async () => {
-    try {
-      await invoke("send_rpc", { method: "llm.unload", params: {} });
-    } catch (e) {
-      console.error("Unload error:", e);
-    }
-  };
-
   els.taskScheduleType.onchange = () => {
     const type = els.taskScheduleType.value;
     document.querySelector("#schedule-once-config")?.classList.toggle("hidden", type !== "once");
     document.querySelector("#schedule-repeat-config")?.classList.toggle("hidden", type !== "repeat");
   };
-
   els.btnTaskSave.onclick = async () => {
     const task = {
       id: editingTaskId || undefined,
       label: els.taskLabel.value,
       instruction: els.taskInstruction.value,
+      project_id: currentProjectId,
       schedule_type: els.taskScheduleType.value,
       target_time: els.taskTargetTime.value || null,
       interval_seconds: parseInt(els.taskInterval.value) || null,
@@ -239,33 +304,60 @@ window.addEventListener("DOMContentLoaded", async () => {
     els.taskModal.classList.add("hidden");
   };
 
-  // Approval Modal Actions
+  // Model Management
+  els.btnPullModel.onclick = async () => {
+    const model = els.pullModelId.value;
+    if (!model) return;
+    els.btnPullModel.disabled = true;
+    await invoke("send_rpc", { method: "system.pull_model", params: { model } });
+  };
+  els.btnLoadModel.onclick = async () => {
+    const model = els.pullModelId.value;
+    els.btnLoadModel.disabled = true;
+    await invoke("send_rpc", { method: "llm.preload", params: { model: model || undefined } });
+  };
+  els.btnUnloadModel.onclick = async () => {
+    await invoke("send_rpc", { method: "llm.unload", params: {} });
+  };
+
+  // History Search
+  els.historyQuery.oninput = () => refreshData();
+
+  // Approval
   els.btnApprove.onclick = async () => {
     if (activeApprovalId) {
       await invoke("send_rpc", {
         method: "grant.approve",
-        params: {
-          approval_id: activeApprovalId,
-          grant_type: els.grantType.value,
-          duration: els.grantType.value === "session" ? 3600 : 0
-        }
+        params: { approval_id: activeApprovalId, grant_type: els.grantType.value, duration: els.grantType.value === "session" ? 3600 : 0 }
       });
       els.approvalModal.classList.add("hidden");
       activeApprovalId = null;
     }
   };
-
   els.btnDeny.onclick = async () => {
     if (activeApprovalId) {
-      await invoke("send_rpc", {
-        method: "grant.deny",
-        params: { approval_id: activeApprovalId }
-      });
+      await invoke("send_rpc", { method: "grant.deny", params: { approval_id: activeApprovalId } });
       els.approvalModal.classList.add("hidden");
       activeApprovalId = null;
     }
   };
 
-  await refreshData();
+  // Tab Switching
+  els.tabBtnInteraction.onclick = () => {
+    els.tabBtnInteraction.classList.add("active");
+    els.tabBtnMonitoring.classList.remove("active");
+    els.tabInteraction.classList.add("active");
+    els.tabMonitoring.classList.remove("active");
+  };
+
+  els.tabBtnMonitoring.onclick = () => {
+    els.tabBtnMonitoring.classList.add("active");
+    els.tabBtnInteraction.classList.remove("active");
+    els.tabMonitoring.classList.add("active");
+    els.tabInteraction.classList.remove("active");
+    refreshData();
+  };
+
+  await refreshContext();
   setInterval(refreshData, 5000);
 });

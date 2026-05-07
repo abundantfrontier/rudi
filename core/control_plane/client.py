@@ -84,11 +84,12 @@ class ControlPlaneClient:
         # Use mode='json' to ensure datetime objects are serialized to strings
         return await self._call("capability.request", request.model_dump(mode='json'))
 
-    async def execute(self, agent_id: str, action: str, args: Dict[str, Any]) -> Any:
+    async def execute(self, agent_id: str, action: str, args: Dict[str, Any], project_id: Optional[str] = None) -> Any:
         return await self._call("capability.execute", {
             "agent_id": agent_id,
             "action": action,
-            "args": args
+            "args": args,
+            "project_id": project_id
         })
 
     async def http_request(

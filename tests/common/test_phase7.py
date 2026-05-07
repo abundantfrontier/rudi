@@ -114,17 +114,18 @@ class TestPhase7Features(unittest.IsolatedAsyncioTestCase):
             capability=CapabilityType.NETWORK_CONNECT,
             scope={"host": "limited.com", "port": 80},
             grant_type=GrantType.SESSION,
-            constraints={"max_calls": 2}
+            constraints={"max_calls": 2},
+            project_id="default"
         )
         self.server.manager.grants[grant.id] = grant
 
         # Use 1
-        await self.client.execute(agent_id, CapabilityType.NETWORK_CONNECT, {"host": "limited.com", "port": 80})
+        await self.client.execute(agent_id, CapabilityType.NETWORK_CONNECT, {"host": "limited.com", "port": 80}, project_id="default")
         # Use 2
-        await self.client.execute(agent_id, CapabilityType.NETWORK_CONNECT, {"host": "limited.com", "port": 80})
+        await self.client.execute(agent_id, CapabilityType.NETWORK_CONNECT, {"host": "limited.com", "port": 80}, project_id="default")
         # Use 3 (Should fail)
         with self.assertRaises(Exception) as cm:
-            await self.client.execute(agent_id, CapabilityType.NETWORK_CONNECT, {"host": "limited.com", "port": 80})
+            await self.client.execute(agent_id, CapabilityType.NETWORK_CONNECT, {"host": "limited.com", "port": 80}, project_id="default")
         self.assertIn("blocked", str(cm.exception))
 
     async def test_plugin_system(self):
@@ -135,12 +136,13 @@ class TestPhase7Features(unittest.IsolatedAsyncioTestCase):
             agent_id=agent_id,
             capability="custom:test",
             scope={"msg": "*"},
-            grant_type=GrantType.SESSION
+            grant_type=GrantType.SESSION,
+            project_id="default"
         )
         self.server.manager.grants[grant.id] = grant
 
         # 2. Execute via plugin
-        res = await self.client.execute(agent_id, "custom:test", {"msg": "Ping!"})
+        res = await self.client.execute(agent_id, "custom:test", {"msg": "Ping!"}, project_id="default")
         self.assertEqual(res["response"], f"Hello {agent_id}, you said: Ping!")
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import threading
 import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from core.models.models import CapabilityRequest, CapabilityGrant, GrantType, AuditEvent, CapabilityType
+from core.models.models import CapabilityRequest, CapabilityGrant, GrantType, AuditEvent, CapabilityType, Persona, Project, HistorySummary
 from core.control_plane.interface import ControlPlaneInterface
 from core.policy.engine import PolicyEngine
 from core.audit.logger import AuditLogger
@@ -47,6 +47,9 @@ class ControlPlaneManager(ControlPlaneInterface):
         self.grants: Dict[str, CapabilityGrant] = {g.id: g for g in self.storage.load_all_grants()}
         self.registered_agents: Dict[str, str] = self.storage.get_all_agents() # agent_id -> token_hash
         
+        # Ensure Default Persona/Project exists
+        self._ensure_defaults()
+
         self.metrics = {
             "total_requests": 0,
             "total_grants": 0,
@@ -221,6 +224,7 @@ class ControlPlaneManager(ControlPlaneInterface):
             scope=normalized_scope,
             grant_type=grant_type,
             risk_level=risk_level,
+            project_id=request.project_id,
             parent_id=request.parent_grant_id,
             constraints=request.constraints,
             expires_at=expires_at
@@ -240,9 +244,10 @@ class ControlPlaneManager(ControlPlaneInterface):
         })
         return grant
 
-    def validate_grant(self, agent_id: str, capability_type: str, scope: Dict[str, Any]) -> bool:
+    def validate_grant(self, agent_id: str, capability_type: str, scope: Dict[str, Any], project_id: Optional[str] = None) -> bool:
         """
         Check if an agent currently holds a valid grant for a specific action.
+        Ensures strict project_id isolation.
         """
         now = datetime.now()
         with self.lock:
@@ -252,10 +257,14 @@ class ControlPlaneManager(ControlPlaneInterface):
                     self.audit_logger.log_event(AuditEvent(
                         agent_id=agent_id, event_type="expiration",
                         action=capability_type, resource=str(scope),
-                        status="expired", details={"grant_id": grant_id}
+                        status="expired", project_id=grant.project_id, details={"grant_id": grant_id}
                     ))
                     del self.grants[grant_id]
                     self.storage.delete_grant(grant_id)
+                    continue
+
+                # Project Isolation check
+                if project_id and grant.project_id != project_id:
                     continue
 
                 # Identity and Capability match
@@ -464,10 +473,50 @@ class ControlPlaneManager(ControlPlaneInterface):
         event = AuditEvent(
             agent_id=request.agent_id, event_type=event_type,
             action=request.capability, resource=str(request.scope),
-            status=status, details=details
+            status=status, project_id=request.project_id, details=details
         )
         self.audit_logger.log_event(event)
 
     def shutdown(self):
         """Perform graceful shutdown, closing storage connections."""
         self.storage.close()
+
+    # --- New Phase 11 Features ---
+
+    def _ensure_defaults(self):
+        """Bootstrap the system with a default persona and project."""
+        personas = self.storage.load_all_personas()
+        if not personas:
+            default_persona = Persona(name="Default Persona", description="Auto-generated default context.")
+            self.storage.save_persona(default_persona)
+            default_project = Project(persona_id=default_persona.id, name="Default Project")
+            self.storage.save_project(default_project)
+
+    def create_persona(self, name: str, description: Optional[str] = None) -> Persona:
+        p = Persona(name=name, description=description)
+        self.storage.save_persona(p)
+        return p
+
+    def create_project(self, persona_id: str, name: str, description: Optional[str] = None) -> Project:
+        p = Project(persona_id=persona_id, name=name, description=description)
+        self.storage.save_project(p)
+        return p
+
+    def list_personas(self) -> List[Persona]:
+        return self.storage.load_all_personas()
+
+    def list_projects(self, persona_id: Optional[str] = None) -> List[Project]:
+        return self.storage.load_projects(persona_id)
+
+    def add_history_summary(self, project_id: str, agent_id: str, summary: str, metadata: Dict[str, Any] = {}):
+        s = HistorySummary(project_id=project_id, agent_id=agent_id, summary=summary, metadata=metadata)
+        self.storage.save_history_summary(s)
+        # Log to audit too
+        self.audit_logger.log_event(AuditEvent(
+            agent_id=agent_id, event_type="history", action="summarize", 
+            resource=project_id, status="success", project_id=project_id,
+            details={"summary": summary}
+        ))
+
+    def query_history(self, project_id: str, query: Optional[str] = None) -> List[HistorySummary]:
+        return self.storage.query_history(project_id, query)

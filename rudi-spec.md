@@ -1,5 +1,5 @@
 # R.U.D.I. Capabilities & Approvals System
-**Phased Requirements Specification v1.14**  
+**Phased Requirements Specification v1.15**  
 **Optimized for AI Coding Agents**  
 **Date:** May 7, 2026
 
@@ -10,7 +10,7 @@
 **CRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:**
 
 1. **Always read the full current version of this file** (`rudi-spec.md`) before planning, coding, or suggesting any changes.
-2. **Current Active Phase**: Phase 11 — Personas, Projects & Semantic Memory.
+2. **Current Active Phase**: Phase 12 — Deep Interposition & Core Toolset.
 3. Never implement features from future phases unless explicitly instructed.
 4. Every implementation **must** respect the Core Principles, Cross-Platform Strategy, and Foundational Requirements below.
 5. After completing work on any phase, update this spec.md with:
@@ -130,24 +130,22 @@ Implement a secure network proxy layer to enable "air-gapped" control over exter
 
 ---
 
-## Phase 11: Personas, Projects & Semantic Memory (ACTIVE)
+## Phase 11: Personas, Projects & Semantic Memory (COMPLETED)
 
 **Objective**  
 Isolate user contexts and provide agents with long-term, searchable "memory" of past interactions.
 
-**Requirements**
-- **Personas & Projects**: Implement logical grouping of grants and history.
-    - **Personas** (e.g., Work, Personal): Default permission sets and identities.
-    - **Projects**: Scoped contexts within a persona (e.g., "Research Topic A").
-- **Activity Streams**: Real-time "Thought" feed in UI showing LLM reasoning alongside capability requests.
-- **Semantic History Indexing**: 
-    - Automatically summarize agent actions and findings into a searchable index.
-    - Allow agents to query this index (via `history:query`) to quickly recall past work without re-executing high-cost tasks.
-- **Storage**: Extend SQLite schema to support persona/project ownership and history summaries.
+**Status: COMPLETED**
+- **Personas & Projects**: Implemented logical grouping and isolation. Every task, grant, and history item is now context-aware.
+- **Activity Streams**: Developed a real-time "Thought Feed" in the Tauri UI, allowing users to see agent reasoning alongside capability requests.
+- **Semantic History Indexing**: Built a system that automatically summarizes agent work into a searchable SQLite index, accessible via \`history:query\`.
+- **Atomic Validation**: Refactored the enforcement layer so that platform-specific adapters (Darwin/Linux) are the sole, project-aware authoritative points for validation. This definitively resolved double-consumption bugs for stateful constraints.
+- **UI Refactor**: Reorganized the dashboard into a two-tabbed interface (**Interaction** and **Monitoring**) for better focus and usability, including a breadcrumb context switcher.
+- **Window Management**: Optimized default window size (1100x900) to fit the comprehensive command center layout.
 
 ---
 
-## Phase 12: Deep Interposition & Core Toolset (BACKLOG)
+## Phase 12: Deep Interposition & Core Toolset (ACTIVE)
 
 **Objective**  
 Demonstrate the "Virtual Service" pattern and provide essential agent tools.
@@ -171,6 +169,7 @@ Support cross-machine capability mediation.
 
 ## Change Log
 
+- **2026-05-07 v1.15**: Completed Phase 11. Implemented Personas, Projects, Activity Streams, and Semantic Memory. Refactored UI into Interaction/Monitoring tabs. Set Phase 12 as ACTIVE.
 - **2026-05-07 v1.14**: Roadmap Expansion. Detailed Phase 11 (Personas/Memory) and Phase 12 (Interposition/Toolset). Set Phase 11 as ACTIVE.
 - **2026-05-07 v1.13**: Completed Phase 10. Implemented IPC-based HTTP mediation.
 - **2026-05-07 v1.12**: Roadmap Pivot. Added Phase 10 (Advanced Network Mediation) and Phase 11 (UX Refinement).

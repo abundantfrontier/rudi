@@ -94,12 +94,13 @@
 - [x] Align network mediation with the air-gapped security vision
 - [x] Verification with `tests/common/test_phase10_network.py`
 
-## Phase 11: Personas, Projects & Semantic Memory (ACTIVE)
-- [ ] Implement Persona/Project management (Context isolation)
-- [ ] Add Activity Stream & Reasoning visualization to UI
-- [ ] Develop Semantic History Indexing (Searchable notes/summaries of past events)
-- [ ] Enable agent "Memory Retrieval" via history index queries
-- [ ] Support Toolkit categorized by Project/Persona
+## Phase 11: Personas, Projects & Semantic Memory (COMPLETED)
+- [x] Implement Persona/Project management (Context isolation)
+- [x] Add Activity Stream & Reasoning visualization to UI
+- [x] Develop Semantic History Indexing (Searchable notes/summaries of past events)
+- [x] Enable agent "Memory Retrieval" via history index queries
+- [x] Support Toolkit categorized by Project/Persona
+- [x] UI Refactor: Two-tabbed command center (Interaction vs Monitoring)
 
 ## Phase 12: Deep Interposition & Core Toolset (NOT STARTED)
 - [ ] Build the first Interposition API (e.g., Google Calendar Proxy)

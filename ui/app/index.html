@@ -11,66 +11,124 @@
   <body>
     <main class="container">
       <header>
-        <h1>R.U.D.I. Dashboard</h1>
-        <div id="system-status" class="status-badge">Connecting...</div>
+        <div class="brand">
+          <h1>R.U.D.I.</h1>
+          <div id="system-status" class="status-badge">Connecting...</div>
+        </div>
+        
+        <div class="context-controls">
+          <button id="btn-new-persona" class="btn-small btn-primary" title="New Persona">+</button>
+          <select id="select-persona">
+            <!-- Populated via TS -->
+          </select>
+          
+          <span class="breadcrumb-separator">/</span>
+          
+          <select id="select-project">
+            <!-- Populated via TS -->
+          </select>
+          <button id="btn-new-project" class="btn-small btn-primary" title="New Project">+ Project</button>
+        </div>
       </header>
 
-      <section id="toolkit" class="card">
-        <div class="card-header">
-          <h2>Agent Toolkit</h2>
-          <button id="btn-add-task" class="btn-small btn-primary">+ New Task</button>
-        </div>
-        <div id="task-grid" class="button-grid">
-          <!-- Dynamic Buttons -->
-        </div>
-      </section>
+      <nav class="tab-nav">
+        <button id="tab-btn-interaction" class="tab-btn active">Interaction</button>
+        <button id="tab-btn-monitoring" class="tab-btn">Monitoring & Security</button>
+      </nav>
 
-      <section id="model-manager" class="card">
-        <div class="card-header">
-          <h2>Model Management</h2>
-          <div id="ram-status" class="status-badge">NOT LOADED</div>
-        </div>
-        <div class="form-group row">
-          <input type="text" id="pull-model-id" placeholder="mlx-community/Meta-Llama-3-8B-Instruct-4bit" style="flex: 1" />
-          <div class="button-group">
-            <button id="btn-pull-model" class="btn-small">Pull to Disk</button>
-            <button id="btn-load-model" class="btn-small btn-success">Load to RAM</button>
-            <button id="btn-unload-model" class="btn-small btn-danger hidden">Unload</button>
+      <!-- Interaction Tab -->
+      <div id="tab-interaction" class="tab-content active">
+        <div class="dashboard-grid">
+          <div class="column-left">
+            <section id="toolkit" class="card">
+              <div class="card-header">
+                <h2>Agent Toolkit</h2>
+                <button id="btn-add-task" class="btn-small btn-primary">+ New Task</button>
+              </div>
+              <div id="task-grid" class="button-grid">
+                <!-- Dynamic Buttons -->
+              </div>
+            </section>
+          </div>
+          <div class="column-right">
+            <section id="activity-stream" class="card">
+              <h2>Activity Stream</h2>
+              <div id="thought-feed" class="stream-container">
+                <div class="empty-state">No active agent thoughts...</div>
+              </div>
+            </section>
           </div>
         </div>
-        <div id="model-status" class="status-text">Weights stay on disk unless 'Load to RAM' is clicked.</div>
-      </section>
-
-      <section id="metrics" class="card">
-        <h2>System Metrics</h2>
-        <div class="metrics-grid">
-          <div class="metric"><span>Requests:</span> <b id="m-requests">0</b></div>
-          <div class="metric"><span>Grants:</span> <b id="m-grants">0</b></div>
-          <div class="metric"><span>Denials:</span> <b id="m-denials">0</b></div>
-          <div class="metric"><span>Uses:</span> <b id="m-uses">0</b></div>
-          <div class="metric"><span>Blocked:</span> <b id="m-blocked">0</b></div>
-          <div class="metric"><span>ID Failures:</span> <b id="m-id-failures" class="danger">0</b></div>
-        </div>
-      </section>
-
-      <section id="active-grants" class="card">
-        <h2>Active Grants</h2>
-        <table id="grants-table">
-          <thead>
-            <tr>
-              <th>Agent</th>
-              <th>Capability</th>
-              <th>Expiry</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
+        
+        <section id="history" class="card">
+          <div class="card-header">
+            <h2>Semantic Memory</h2>
+            <div class="search-box">
+              <input type="text" id="history-query" placeholder="Search past work..." />
+            </div>
+          </div>
+          <div id="history-list" class="history-container">
             <!-- Populated via TS -->
-          </tbody>
-        </table>
-      </section>
+          </div>
+        </section>
+      </div>
 
-      <!-- Approval Modal -->
+      <!-- Monitoring Tab -->
+      <div id="tab-monitoring" class="tab-content">
+        <div class="dashboard-grid">
+          <div class="column-left">
+            <section id="metrics" class="card">
+              <h2>System Metrics</h2>
+              <div class="metrics-grid">
+                <div class="metric"><span>Requests:</span> <b id="m-requests">0</b></div>
+                <div class="metric"><span>Grants:</span> <b id="m-grants">0</b></div>
+                <div class="metric"><span>Denials:</span> <b id="m-denials">0</b></div>
+                <div class="metric"><span>Uses:</span> <b id="m-uses">0</b></div>
+                <div class="metric"><span>Blocked:</span> <b id="m-blocked">0</b></div>
+                <div class="metric"><span>ID Failures:</span> <b id="m-id-failures" class="danger">0</b></div>
+              </div>
+            </section>
+
+            <section id="active-grants" class="card">
+              <h2>Active Grants</h2>
+              <table id="grants-table">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Capability</th>
+                    <th>Expiry</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Populated via TS -->
+                </tbody>
+              </table>
+            </section>
+          </div>
+          <div class="column-right">
+            <section id="model-manager" class="card">
+              <div class="card-header">
+                <h2>Model Management</h2>
+                <div id="ram-status" class="status-badge">NOT LOADED</div>
+              </div>
+              <div class="form-group row">
+                <input type="text" id="pull-model-id" placeholder="HuggingFace ID" style="flex: 1" />
+                <div class="button-group">
+                  <button id="btn-pull-model" class="btn-small">Pull</button>
+                  <button id="btn-load-model" class="btn-small btn-success">Load</button>
+                  <button id="btn-unload-model" class="btn-small btn-danger hidden">Unload</button>
+                </div>
+              </div>
+              <div id="model-status" class="status-text">Weights stay on disk until 'Load' is clicked.</div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- Global Modals -->
+
+      <!-- Capability Approval Modal -->
       <div id="approval-modal" class="modal hidden">
         <div class="modal-content">
           <h3>Capability Request Approval</h3>
@@ -87,6 +145,44 @@
               </select>
               <button id="btn-approve" class="btn-success">Approve</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Persona Editor Modal -->
+      <div id="persona-modal" class="modal hidden">
+        <div class="modal-content">
+          <h3>Create New Persona</h3>
+          <div class="form-group">
+            <label>Persona Name</label>
+            <input type="text" id="persona-name" placeholder="e.g. Work" />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="persona-desc" rows="2"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button id="btn-persona-cancel">Cancel</button>
+            <button id="btn-persona-save" class="btn-success">Create Persona</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Editor Modal -->
+      <div id="project-modal" class="modal hidden">
+        <div class="modal-content">
+          <h3>Create New Project</h3>
+          <div class="form-group">
+            <label>Project Name</label>
+            <input type="text" id="project-name" placeholder="e.g. Research Topic A" />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="project-desc" rows="2"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button id="btn-project-cancel">Cancel</button>
+            <button id="btn-project-save" class="btn-success">Create Project</button>
           </div>
         </div>
       </div>
