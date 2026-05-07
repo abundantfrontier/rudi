@@ -4,6 +4,7 @@ import os
 import stat
 import logging
 import uuid
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from core.control_plane.manager import ControlPlaneManager
 from core.models.models import CapabilityRequest, CapabilityType, GrantType
@@ -64,6 +65,9 @@ class ControlPlaneServer:
         self.ui_handler = IPCUIHandler(self)
         self.manager.ui_handler = self.ui_handler
         self.plugins: Dict[str, CapabilityPlugin] = {}
+        # Load tasks from storage
+        from core.models.models import DelegatedTask
+        self.tasks: Dict[str, DelegatedTask] = {t.id: t for t in self.manager.storage.load_all_tasks()}
 
     def register_plugin(self, plugin: CapabilityPlugin):
         """Register a dynamic capability plugin."""
@@ -89,6 +93,8 @@ class ControlPlaneServer:
         os.chmod(self.socket_path, stat.S_IRUSR | stat.S_IWUSR)
         
         logger.info(f"R.U.D.I. Server started on {self.socket_path}")
+        # Start background scheduler
+        asyncio.create_task(self.scheduler_loop())
         async with server:
             await server.serve_forever()
 
@@ -134,6 +140,14 @@ class ControlPlaneServer:
             elif method == "system.register_ui":
                 self.ui_connection = writer
                 result = "UI Registered"
+            elif method == "system.pull_model":
+                result = await self.handle_pull_model(params)
+            elif method == "llm.preload":
+                result = await self.handle_llm_preload(params)
+            elif method == "llm.unload":
+                result = self.handle_llm_unload()
+            elif method == "llm.generate":
+                result = await self.handle_llm_generate(params)
             elif method == "capability.request":
                 result = await self.handle_capability_request(params)
             elif method == "capability.execute":
@@ -146,6 +160,14 @@ class ControlPlaneServer:
                 result = [g.model_dump(mode='json') for g in self.manager.get_active_grants(params.get("agent_id"))]
             elif method == "metrics.get":
                 result = self.manager.get_metrics()
+            elif method == "task.list":
+                result = [t.model_dump(mode='json') for t in self.tasks.values()]
+            elif method == "task.save":
+                result = await self.handle_task_save(params)
+            elif method == "task.delete":
+                result = self.handle_task_delete(params)
+            elif method == "task.run":
+                result = await self.handle_task_run(params)
             else:
                 raise JSONRPCError(-32601, f"Method not found: {method}")
 
@@ -171,6 +193,123 @@ class ControlPlaneServer:
         req = CapabilityRequest(**params)
         grant = await self.manager.request_capability(req)
         return grant.model_dump(mode='json') if grant else None
+
+    async def handle_pull_model(self, params: Dict[str, Any]) -> Any:
+        model_path = params.get("model")
+        if hasattr(self.llm_provider, "download_model"):
+            success = await self.llm_provider.download_model(model_path)
+            return {"status": "success" if success else "failed"}
+        else:
+            raise JSONRPCError(-32601, "Model downloading not supported by current LLM provider.")
+
+    async def handle_llm_preload(self, params: Dict[str, Any]) -> Any:
+        model_path = params.get("model")
+        if model_path:
+            self.llm_provider = LLMFactory.get_provider({**self.config, "llm": {"model": model_path}})
+
+        try:
+            await asyncio.to_thread(self.llm_provider._ensure_loaded)
+            return {"status": "success", "message": "Model loaded into RAM."}
+        except Exception as e:
+            raise JSONRPCError(-32603, f"Failed to preload model: {e}")
+
+    def handle_llm_unload(self) -> Any:
+        if hasattr(self.llm_provider, "model"):
+            self.llm_provider.model = None
+            self.llm_provider.tokenizer = None
+            import gc
+            gc.collect()
+            logger.info("Model unloaded from RAM.")
+            return {"status": "success", "message": "Model unloaded."}
+        return {"status": "skipped", "message": "Provider does not support unloading."}
+
+    async def handle_llm_generate(self, params: Dict[str, Any]) -> str:
+        try:
+            return await self.llm_provider.generate(
+                prompt=params.get("prompt"),
+                system_prompt=params.get("system_prompt"),
+                temperature=params.get("temperature", 0.7),
+                max_tokens=params.get("max_tokens", 1000),
+                json_mode=params.get("json_mode", False)
+            )
+        except Exception as e:
+            raise JSONRPCError(-32603, f"Generation failed: {e}")
+
+    async def handle_capability_request(self, params: Dict[str, Any]) -> Any:
+        try:
+            req = CapabilityRequest(**params)
+            grant = await self.manager.request_capability(req)
+            await self.broadcast_update()
+            return grant.model_dump(mode='json') if grant else None
+        except Exception as e:
+            raise JSONRPCError(-32602, f"Invalid request params: {e}")
+
+    async def handle_task_save(self, params: Dict[str, Any]) -> Any:
+        try:
+            from core.models.models import DelegatedTask
+            task = DelegatedTask(**params)
+            # Update next_run_at if needed
+            if task.schedule_type == "once" and task.target_time:
+                task.next_run_at = task.target_time
+            elif task.schedule_type == "repeat" and task.interval_seconds:
+                if not task.next_run_at:
+                    task.next_run_at = datetime.now() + timedelta(seconds=task.interval_seconds)
+            
+            self.tasks[task.id] = task
+            self.manager.storage.save_task(task)
+            await self.broadcast_update()
+            return task.model_dump(mode='json')
+        except Exception as e:
+            raise JSONRPCError(-32602, f"Invalid task params: {e}")
+
+    def handle_task_delete(self, params: Dict[str, Any]) -> bool:
+        task_id = params.get("task_id")
+        if task_id in self.tasks:
+            del self.tasks[task_id]
+            self.manager.storage.delete_task(task_id)
+            asyncio.create_task(self.broadcast_update())
+            return True
+        return False
+
+    async def handle_task_run(self, params: Dict[str, Any]) -> bool:
+        task_id = params.get("task_id")
+        task = self.tasks.get(task_id)
+        if task:
+            await self.trigger_task(task)
+            return True
+        return False
+
+    async def trigger_task(self, task: 'DelegatedTask'):
+        logger.info(f"Triggering task: {task.label} ({task.instruction})")
+        # Spawn agent subprocess
+        import subprocess
+        import sys
+        try:
+            # We use sys.executable to ensure we use the same python interpreter
+            cmd = [sys.executable, "examples/research_agent.py", task.instruction]
+            # Run in background
+            subprocess.Popen(cmd, env={**os.environ, "PYTHONPATH": os.getcwd()})
+            
+            # Update last run
+            task.last_run_at = datetime.now()
+            if task.schedule_type == "repeat" and task.interval_seconds:
+                task.next_run_at = datetime.now() + timedelta(seconds=task.interval_seconds)
+            elif task.schedule_type == "once":
+                task.next_run_at = None # Don't run again
+                
+            self.manager.storage.save_task(task)
+            await self.broadcast_update()
+        except Exception as e:
+            logger.error(f"Failed to trigger task {task.label}: {e}")
+
+    async def scheduler_loop(self):
+        logger.info("Background scheduler started.")
+        while True:
+            await asyncio.sleep(5)
+            now = datetime.now()
+            for task in list(self.tasks.values()):
+                if task.next_run_at and now >= task.next_run_at:
+                    await self.trigger_task(task)
 
     async def handle_capability_execute(self, params: Dict[str, Any]) -> Any:
         agent_id = params.get("agent_id")
@@ -201,6 +340,8 @@ class ControlPlaneServer:
                 res = self._execute_fs(agent_id, action, args)
             elif cap_type == CapabilityType.NETWORK_CONNECT:
                 res = self._execute_net(agent_id, action, args)
+            elif cap_type == CapabilityType.NETWORK_HTTP:
+                res = await self._execute_http(agent_id, action, args)
             elif cap_type == CapabilityType.PROCESS_EXECUTE:
                 res = self._execute_proc(agent_id, action, args)
             else:
@@ -234,6 +375,44 @@ class ControlPlaneServer:
         proc = self.adapters["proc"]
         return proc.execute(agent_id, args.get("command"))
 
+    async def _execute_http(self, agent_id: str, action: str, args: Dict[str, Any]) -> Any:
+        url = args.get("url")
+        method = args.get("method", "GET").upper()
+        headers = args.get("headers", {})
+        body = args.get("body")
+
+        if not url:
+            raise JSONRPCError(-32602, "Missing 'url' argument")
+
+        # Manager validation (using args as scope)
+        if not self.manager.validate_grant(agent_id, action, args):
+            raise JSONRPCError(-32000, f"R.U.D.I. blocked HTTP {method} to {url}: No valid grant.")
+
+        import httpx
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    content=body,
+                    follow_redirects=True
+                )
+                
+                try:
+                    content = resp.json()
+                except:
+                    content = resp.text
+
+                return {
+                    "status_code": resp.status_code,
+                    "headers": dict(resp.headers),
+                    "content": content
+                }
+        except Exception as e:
+            logger.error(f"HTTP request failed: {e}")
+            raise JSONRPCError(-32603, f"HTTP request failed: {e}")
+
     def handle_grant_approve(self, params: Dict[str, Any]) -> bool:
         approval_id = params.get("approval_id")
         grant_type = GrantType(params.get("grant_type", "allow_once"))
@@ -253,8 +432,41 @@ class ControlPlaneServer:
 
 def main():
     """Main entry point for the rudi-server console script."""
+    import sys
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="R.U.D.I. Control Plane Server")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+    
+    # Run command (default)
+    run_parser = subparsers.add_parser("run", help="Start the Control Plane server")
+    
+    # Pull command
+    pull_parser = subparsers.add_parser("pull", help="Download/cache an LLM model")
+    pull_parser.add_argument("model", type=str, help="The model ID to pull (e.g. mlx-community/Meta-Llama-3-8B-Instruct-4bit)")
+
+    args = parser.parse_args()
+
     from core.common.config import ConfigLoader
     config = ConfigLoader.load()
+    
+    if args.command == "pull":
+        from core.llm.factory import LLMFactory
+        provider = LLMFactory.get_provider(config)
+        if hasattr(provider, "download_model"):
+            print(f"Pulling model: {args.model}...")
+            success = asyncio.run(provider.download_model(args.model))
+            if success:
+                print("Model pulled successfully.")
+            else:
+                print("Failed to pull model.")
+                sys.exit(1)
+        else:
+            print("Error: Current LLM provider does not support model pulling.")
+            sys.exit(1)
+        return
+
+    # Default to 'run'
     server = ControlPlaneServer(config)
     try:
         asyncio.run(server.start())

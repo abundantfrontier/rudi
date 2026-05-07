@@ -15,6 +15,32 @@
         <div id="system-status" class="status-badge">Connecting...</div>
       </header>
 
+      <section id="toolkit" class="card">
+        <div class="card-header">
+          <h2>Agent Toolkit</h2>
+          <button id="btn-add-task" class="btn-small btn-primary">+ New Task</button>
+        </div>
+        <div id="task-grid" class="button-grid">
+          <!-- Dynamic Buttons -->
+        </div>
+      </section>
+
+      <section id="model-manager" class="card">
+        <div class="card-header">
+          <h2>Model Management</h2>
+          <div id="ram-status" class="status-badge">NOT LOADED</div>
+        </div>
+        <div class="form-group row">
+          <input type="text" id="pull-model-id" placeholder="mlx-community/Meta-Llama-3-8B-Instruct-4bit" style="flex: 1" />
+          <div class="button-group">
+            <button id="btn-pull-model" class="btn-small">Pull to Disk</button>
+            <button id="btn-load-model" class="btn-small btn-success">Load to RAM</button>
+            <button id="btn-unload-model" class="btn-small btn-danger hidden">Unload</button>
+          </div>
+        </div>
+        <div id="model-status" class="status-text">Weights stay on disk unless 'Load to RAM' is clicked.</div>
+      </section>
+
       <section id="metrics" class="card">
         <h2>System Metrics</h2>
         <div class="metrics-grid">
@@ -61,6 +87,41 @@
               </select>
               <button id="btn-approve" class="btn-success">Approve</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Task Editor Modal -->
+      <div id="task-modal" class="modal hidden">
+        <div class="modal-content">
+          <h3 id="task-modal-title">Create New Task</h3>
+          <div class="form-group">
+            <label>Button Label</label>
+            <input type="text" id="task-label" placeholder="e.g. Daily Summary" />
+          </div>
+          <div class="form-group">
+            <label>Agent Instruction</label>
+            <textarea id="task-instruction" rows="4" placeholder="e.g. Read /var/log/auth.log and..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Schedule Type</label>
+            <select id="task-schedule-type">
+              <option value="manual">Manual Button Only</option>
+              <option value="once">Run Once (Specific Time)</option>
+              <option value="repeat">Repeat (Interval)</option>
+            </select>
+          </div>
+          <div id="schedule-once-config" class="form-group hidden">
+            <label>Run At</label>
+            <input type="datetime-local" id="task-target-time" />
+          </div>
+          <div id="schedule-repeat-config" class="form-group hidden">
+            <label>Repeat Every (seconds)</label>
+            <input type="number" id="task-interval" placeholder="3600" />
+          </div>
+          <div class="modal-actions">
+            <button id="btn-task-cancel">Cancel</button>
+            <button id="btn-task-save" class="btn-success">Save Task</button>
           </div>
         </div>
       </div>

@@ -58,6 +58,28 @@ class ControlPlaneClient:
     async def ping(self) -> str:
         return await self._call("system.ping", {})
 
+    async def generate(
+        self, 
+        prompt: str, 
+        system_prompt: Optional[str] = None, 
+        temperature: float = 0.7, 
+        max_tokens: int = 1000, 
+        json_mode: bool = False
+    ) -> str:
+        return await self._call("llm.generate", {
+            "prompt": prompt,
+            "system_prompt": system_prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "json_mode": json_mode
+        })
+
+    async def preload_model(self, model: Optional[str] = None) -> Dict[str, Any]:
+        return await self._call("llm.preload", {"model": model})
+
+    async def unload_model(self) -> Dict[str, Any]:
+        return await self._call("llm.unload", {})
+
     async def request_capability(self, request: CapabilityRequest) -> Optional[Dict[str, Any]]:
         # Use mode='json' to ensure datetime objects are serialized to strings
         return await self._call("capability.request", request.model_dump(mode='json'))
@@ -67,6 +89,24 @@ class ControlPlaneClient:
             "agent_id": agent_id,
             "action": action,
             "args": args
+        })
+
+    async def http_request(
+        self, 
+        agent_id: str, 
+        method: str, 
+        url: str, 
+        headers: Optional[Dict[str, str]] = None, 
+        body: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Perform a mediated HTTP request via the Control Plane.
+        """
+        return await self.execute(agent_id, "network:http", {
+            "method": method,
+            "url": url,
+            "headers": headers or {},
+            "body": body
         })
 
     async def list_grants(self, agent_id: Optional[str] = None) -> List[Dict[str, Any]]:

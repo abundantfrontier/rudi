@@ -1,12 +1,14 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any
+from uuid import uuid4
 from pydantic import BaseModel, Field
 
 class CapabilityType(str, Enum):
     FILESYSTEM_READ = "filesystem:read"
     FILESYSTEM_WRITE = "filesystem:write"
     NETWORK_CONNECT = "network:connect"
+    NETWORK_HTTP = "network:http"
     PROCESS_EXECUTE = "process:execute"
     MODEL_ESCALATE = "model:escalate"
     API_CALL = "api:call"
@@ -50,3 +52,14 @@ class AuditEvent(BaseModel):
     resource: str
     status: str  # "success", "blocked", "expired"
     details: Optional[Dict[str, Any]] = None
+
+class DelegatedTask(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    label: str
+    instruction: str
+    schedule_type: str = "manual"  # "manual", "once", "repeat"
+    target_time: Optional[datetime] = None  # For "once"
+    interval_seconds: Optional[int] = None  # For "repeat"
+    last_run_at: Optional[datetime] = None
+    next_run_at: Optional[datetime] = None
+    metadata: Dict[str, Any] = {}

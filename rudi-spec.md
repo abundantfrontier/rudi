@@ -1,5 +1,5 @@
 # R.U.D.I. Capabilities & Approvals System
-**Phased Requirements Specification v1.10**  
+**Phased Requirements Specification v1.14**  
 **Optimized for AI Coding Agents**  
 **Date:** May 7, 2026
 
@@ -10,7 +10,7 @@
 **CRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:**
 
 1. **Always read the full current version of this file** (`rudi-spec.md`) before planning, coding, or suggesting any changes.
-2. **Current Active Phase**: Phase 9 — LLM Integration & Real Agent Testing.
+2. **Current Active Phase**: Phase 11 — Personas, Projects & Semantic Memory.
 3. Never implement features from future phases unless explicitly instructed.
 4. Every implementation **must** respect the Core Principles, Cross-Platform Strategy, and Foundational Requirements below.
 5. After completing work on any phase, update this spec.md with:
@@ -59,13 +59,13 @@ R.U.D.I. maintains several supporting documents to guide development and usage:
 
 **Agent Identity & Authentication**
 - Agents are identified by a unique `agent_id`.
-- **Refinement**: Implemented token-based verification (`agent_token`) and Strict Identity Mode.
+- **Achievements**: Implemented token-based verification (`agent_token`) and **Strict Identity Mode** which mandates valid tokens for all requests.
 
 **Error Handling & Failure Modes**
 - Enforcement failure results in immediate blocking (Fail-Closed).
 - Human approval timeouts default to denial.
 - Grant expiration checked at time of use.
-- Centralized strategy documented in `docs/error_handling.md`.
+- **Achievements**: Centralized strategy documented in `docs/error_handling.md`.
 
 **Path Normalization**
 - All filesystem paths are converted to absolute, real paths (`os.path.realpath`) to prevent symlink and traversal attacks.
@@ -73,123 +73,108 @@ R.U.D.I. maintains several supporting documents to guide development and usage:
 ---
 
 ## Phase 1: Core Interactive Loop MVP (COMPLETED)
-- **Objective**: Implement the fundamental request/approve/enforce cycle.
-- **Achievements**:
-    - Centralized `ControlPlaneManager`.
-    - Darwin/Linux Filesystem enforcement adapters.
-    - Simple CLI approval dialog (`ui/dialog.py`).
-    - Verified with `examples/toy_agent.py`.
+- **Achievements**: Centralized `ControlPlaneManager`, realpath-based FS enforcement, CLI approval dialog.
 
 ---
 
 ## Phase 2: Expand Grant Types & Hierarchy (COMPLETED)
-- **Objective**: Support time-boxed grants, network capabilities, and hierarchical scoping.
-- **Achievements**:
-    - Added `TIME_BOXED` and `SESSION` grant types.
-    - Implemented `NETWORK_CONNECT` capability with host/port scoping.
-    - **Hierarchical Path Scoping**: Granting access to a directory recursively grants access to its children.
-    - Multi-agent thread-safety with locks.
+- **Achievements**: `TIME_BOXED`/`SESSION` grants, `NETWORK_CONNECT` with scoping, Hierarchical Path Scoping.
 
 ---
 
 ## Phase 3: Background & Durable Auditing (COMPLETED)
-- **Objective**: Support autonomous background behavior and 100% durable logs.
-- **Achievements**:
-    - High-risk action surfacing for background agents.
-    - **Durable Logging**: Every audit event is flushed with `fsync` before action completion.
-    - Dashboard improvements for active grants and revocation.
+- **Achievements**: High-risk action surfacing, 100% durable audit logs with `os.fsync`, revocation dashboard.
 
 ---
 
 ## Phase 4: Remaining v1 Capabilities & Hardening (COMPLETED)
-- **Objective**: Add Process Execution, Model Escalation, and Permanent grants.
-- **Achievements**:
-    - **`PROCESS_EXECUTE`**: Added command-prefix matching and sandboxing interface.
-    - **`MODEL_ESCALATE`**: Implemented stateful **Token Budgets** that decrement on use.
-    - **Permanent Grants**: Added extra "CONFIRM" requirement in UI for zero-expiry grants.
-    - **Host Wildcards**: Support for `*.example.com` in network connect grants.
+- **Achievements**: `PROCESS_EXECUTE` with sandboxing, `MODEL_ESCALATE` with Token Budgets, Permanent Grants.
 
 ---
 
 ## Phase 5: Persistence & State Management (COMPLETED)
-
-**Objective**  
-Transition R.U.D.I. from a volatile, in-memory system to a durable service that preserves grants and identity state across restarts.
-
-**Status: COMPLETED**
-- Implemented **SQLite persistent storage** for grants and registered agents.
-- Developed **`SQLiteStore`** with support for atomic "Write-Through" durability.
-- Added **Token Hashing (SHA-256)** to ensure agent tokens are never stored in plain text.
-- Implemented **Optional AES Encryption** for sensitive grant scope data using the `cryptography` library.
-- Verified that grants and agent registrations survive service restarts with `tests/common/test_persistence.py`.
+- **Achievements**: SQLite storage for grants/agents/tasks, SHA-256 token hashing, optional AES scope encryption.
 
 ---
 
 ## Phase 6: Tauri Desktop Interface (COMPLETED)
-
-**Objective**  
-Build a modern, system-tray-based UI for management and approval.
-
-**Status: COMPLETED**
-- Implemented the **Sidecar Pattern**: Rust backend automatically spawns the Python Control Plane.
-- Developed a **Bidirectional IPC Bridge**: UDS JSON-RPC messages are bridged to Tauri Frontend events.
-- Created a **Reactive Dashboard (Vanilla TS + Vite)**:
-    - Real-time **System Metrics** visualization.
-    - **Active Grants** list with one-click revocation.
-    - **Interactive Approval Modal** triggered by incoming agent requests.
-- Integrated **Strict Server-Side Enforcement**: The UI and Server now collaborate to mediate all resource access.
+- **Achievements**: Sidecar pattern (Rust/Python), Bidirectional IPC Bridge, Reactive Vanilla TS + Vite Dashboard.
 
 ---
 
 ## Phase 7: Extensibility & Advanced Capabilities (COMPLETED)
-
-**Objective**  
-Support advanced agentic workflows like attenuated sub-grants and dynamic plugins.
-
-**Status: COMPLETED**
-- Implemented **Attenuated Grants**: Agents can now derive narrower, auto-approved sub-grants from their existing permissions.
-- Added **Advanced Scoping & Constraints**: Supported time-of-day restrictions (`time_range`) and stateful usage limits (`max_calls`).
-- Developed **Auto-Approval Rules**: Added a policy engine that handles low-risk requests via configurable wildcard patterns (e.g., `/tmp/public/*`).
-- Created a **Dynamic Plugin System**: Standardized `CapabilityPlugin` interface for adding third-party capabilities without core modification.
-- Enhanced **Generic Scope Matching**: Integrated `fnmatch` wildcard support for all string-based scope keys.
+- **Achievements**: Attenuated (Derived) Grants, Advanced scoping (time-of-day, max-calls), Auto-Approval Policy Engine, Dynamic Plugin System.
 
 ---
 
 ## Phase 8: Production Hardening (COMPLETED)
-
-**Objective**  
-Finalize packaging, distribution, and operational readiness.
-
-**Status: COMPLETED**
-- **Structured Logging**: Transitioned to pure **JSONL** format with built-in **`RotatingFileHandler`** (10MB, 5 backups).
-- **Standardized Metrics**: Integrated **Prometheus** metrics export (port 8000) with counters for requests, grants, and blocks.
-- **Packaging**: Enhanced **`pyproject.toml`** with metadata, dependencies, and a **`rudi-server`** console script entry point.
-- **Error Handling**: Improved operator experience with structured JSON-RPC error codes and messages.
+- **Achievements**: Pure JSONL rotating logs, Prometheus metrics exporter (port 8000), `rudi-server` CLI entry point.
 
 ---
 
-## Phase 9: LLM Integration & Real Agent Testing (ACTIVE)
+## Phase 9: LLM Integration & Real Agent Testing (COMPLETED)
+- **Achievements**: Pluggable `MLXProvider` (Apple Silicon) and `OpenAIProvider`, Model preloading/RAM management, `examples/research_agent.py` reasoning loop.
+
+---
+
+## Phase 10: Advanced Network Mediation & Air-Gapped Proxying (COMPLETED)
 
 **Objective**  
-End-to-end verification with local LLMs and adversarial testing.
+Implement a secure network proxy layer to enable "air-gapped" control over external API communication.
+
+**Achievements**
+- **IPC-Based HTTP Mediation**: Implemented `network:http` capability where agents delegate HTTP requests to the Control Plane.
+- **Granular Policy Enforcement**: Implemented method filtering (Read-Only GET vs POST) and URL pattern matching.
+- **Air-Gapped Ready**: Enables agents with zero network possession to communicate via the mediated Control Plane.
+- **Integrated Client**: Added `http_request` helper to `ControlPlaneClient`.
+
+---
+
+## Phase 11: Personas, Projects & Semantic Memory (ACTIVE)
+
+**Objective**  
+Isolate user contexts and provide agents with long-term, searchable "memory" of past interactions.
 
 **Requirements**
-- Build proper test agents that use local models (Ollama, LM Studio, etc.)
-- Run realistic multi-step agent scenarios.
-- Evaluate error handling behavior from an agent’s perspective.
-- Perform adversarial testing (e.g. prompt injection attempts to request overly broad capabilities).
+- **Personas & Projects**: Implement logical grouping of grants and history.
+    - **Personas** (e.g., Work, Personal): Default permission sets and identities.
+    - **Projects**: Scoped contexts within a persona (e.g., "Research Topic A").
+- **Activity Streams**: Real-time "Thought" feed in UI showing LLM reasoning alongside capability requests.
+- **Semantic History Indexing**: 
+    - Automatically summarize agent actions and findings into a searchable index.
+    - Allow agents to query this index (via `history:query`) to quickly recall past work without re-executing high-cost tasks.
+- **Storage**: Extend SQLite schema to support persona/project ownership and history summaries.
+
+---
+
+## Phase 12: Deep Interposition & Core Toolset (BACKLOG)
+
+**Objective**  
+Demonstrate the "Virtual Service" pattern and provide essential agent tools.
+
+**Requirements**
+- **Interposition APIs**: Build a proxy for a complex service (e.g., Google Calendar).
+    - R.U.D.I. holds the actual OAuth credentials.
+    - R.U.D.I. exposes a local IPC endpoint that mimics a safe subset of the real API.
+    - Agents use the local endpoint; R.U.D.I. maps and validates every call before proxying to the real service.
+- **Core Workforce**: Implement high-utility plugins for Web Search (Tavily/DDG), Web Scraping, and System Health.
+- **Interactive Feedback**: Support a "Chat" window in the dashboard for real-time agent steering.
+
+---
+
+## Phase 13: Remote / Distributed Control Plane (BACKLOG)
+
+**Objective**  
+Support cross-machine capability mediation.
 
 ---
 
 ## Change Log
 
-- **2026-05-07 v1.10**: Completed Phase 8. Implemented structured JSONL logging with rotation, Prometheus metrics, and console script packaging. Set Phase 9 as ACTIVE.
-- **2026-05-05 v1.9**: Completed Phase 7. Implemented Attenuated Grants, Advanced Scoping (Constraints), Auto-Approval Rules, and a dynamic Plugin System. Enhanced scope matching with wildcards. Set Phase 8 as ACTIVE.
-- **2026-05-05 v1.8**: Completed Phase 5. Implemented SQLite persistence, SHA-256 token hashing, and optional AES encryption for grants. Set Phase 6 as ACTIVE.
-- **2026-05-05 v1.7**: Restored truncated sections. Revised roadmap to Phases 5-10. Detailed Phase 5 Persistence requirements. Set Phase 5 as ACTIVE.
-- **2026-05-05 v1.6**: Completed Phase 4. Implemented Process Execution, Model Escalation (Token Budgets), API Call capabilities, and Permanent Grants with extra confirmation. Improved scope matching (wildcards, command prefixes).
-- **2026-05-05 v1.5**: Updated Phase 2 and Phase 3 with durability and safety enhancements.
-- **2026-05-05 v1.4**: Added Foundational Requirements (Identity, Error Handling, Observability).
+- **2026-05-07 v1.14**: Roadmap Expansion. Detailed Phase 11 (Personas/Memory) and Phase 12 (Interposition/Toolset). Set Phase 11 as ACTIVE.
+- **2026-05-07 v1.13**: Completed Phase 10. Implemented IPC-based HTTP mediation.
+- **2026-05-07 v1.12**: Roadmap Pivot. Added Phase 10 (Advanced Network Mediation) and Phase 11 (UX Refinement).
+- **2026-05-07 v1.11**: Completed Phase 9. Implemented pluggable LLM backend.
 
 ---
 

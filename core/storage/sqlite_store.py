@@ -2,7 +2,7 @@ import sqlite3
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from core.models.models import CapabilityGrant, CapabilityType, GrantType
+from core.models.models import CapabilityGrant, CapabilityType, GrantType, DelegatedTask
 
 try:
     from cryptography.fernet import Fernet
@@ -43,6 +43,21 @@ class SQLiteStore:
             cursor.execute("ALTER TABLE grants ADD COLUMN parent_id TEXT")
         if 'constraints' not in columns:
             cursor.execute("ALTER TABLE grants ADD COLUMN constraints TEXT")
+
+        # Tasks table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY,
+                label TEXT,
+                instruction TEXT,
+                schedule_type TEXT,
+                target_time TEXT,
+                interval_seconds INTEGER,
+                last_run_at TEXT,
+                next_run_at TEXT,
+                metadata TEXT
+            )
+        """)
 
         # Agents table
         cursor.execute("""
@@ -145,3 +160,51 @@ class SQLiteStore:
 
     def close(self):
         self.conn.close()
+
+    def save_task(self, task: DelegatedTask):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO tasks (
+                id, label, instruction, schedule_type, target_time, 
+                interval_seconds, last_run_at, next_run_at, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            task.id,
+            task.label,
+            task.instruction,
+            task.schedule_type,
+            task.target_time.isoformat() if task.target_time else None,
+            task.interval_seconds,
+            task.last_run_at.isoformat() if task.last_run_at else None,
+            task.next_run_at.isoformat() if task.next_run_at else None,
+            json.dumps(task.metadata)
+        ))
+        self.conn.commit()
+
+    def delete_task(self, task_id: str):
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        self.conn.commit()
+
+    def load_all_tasks(self) -> List[DelegatedTask]:
+        tasks = []
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM tasks")
+        for row in cursor.fetchall():
+            target_time = datetime.fromisoformat(row['target_time']) if row['target_time'] else None
+            last_run_at = datetime.fromisoformat(row['last_run_at']) if row['last_run_at'] else None
+            next_run_at = datetime.fromisoformat(row['next_run_at']) if row['next_run_at'] else None
+            
+            task = DelegatedTask(
+                id=row['id'],
+                label=row['label'],
+                instruction=row['instruction'],
+                schedule_type=row['schedule_type'],
+                target_time=target_time,
+                interval_seconds=row['interval_seconds'],
+                last_run_at=last_run_at,
+                next_run_at=next_run_at,
+                metadata=json.loads(row['metadata'])
+            )
+            tasks.append(task)
+        return tasks

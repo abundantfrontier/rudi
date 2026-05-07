@@ -318,6 +318,21 @@ class ControlPlaneManager(ControlPlaneInterface):
                     return False
                 continue
 
+            # Special case: allowed_methods matches against method
+            if key == "allowed_methods":
+                if "method" in requested_scope:
+                    if str(requested_scope["method"]).upper() not in [m.upper() for m in g_val]:
+                        return False
+                # If 'method' not in request, we assume it's a generic check, but usually it's there
+                continue
+
+            # Special case: url_pattern matches against url
+            if key == "url_pattern":
+                if "url" in requested_scope:
+                    if not fnmatch.fnmatch(str(requested_scope["url"]), g_val):
+                        return False
+                continue
+
             # Standard keys must be present in requested_scope
             if key not in requested_scope:
                 return False

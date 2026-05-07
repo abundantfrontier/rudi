@@ -79,13 +79,35 @@
 - [x] Security review and hardening
 - [x] Operator experience & error message improvements
 
-## Phase 9: LLM Integration & Real Agent Testing (NOT STARTED)
-- [ ] Test agents with local models (Ollama/LM Studio)
-- [ ] Realistic multi-step agent scenarios
-- [ ] Adversarial testing (prompt injection attempts)
-- [ ] Usability evaluation for LLM-driven requests
+## Phase 9: LLM Integration & Real Agent Testing (COMPLETED)
+- [x] Implement pluggable LLM provider interface
+- [x] Build `MLXProvider` for high-performance macOS inference
+- [x] Build `OpenAIProvider` for Ollama/LM Studio compatibility
+- [x] Implement local model management (download/cache)
+- [x] Build and test real agents (Research, Monitor) with local LLMs
+- [x] Adversarial testing of agent capability requests
 
-## Phase 10: Remote / Distributed Control Plane (NOT STARTED)
+## Phase 10: Advanced Network Mediation & Air-Gapped Proxying (COMPLETED)
+- [x] Implement integrated HTTP/HTTPS proxy layer (IPC-based mediation)
+- [x] Support Read-Only enforcement for specific APIs/domains
+- [x] Block "Write" methods (POST, PUT, DELETE, PATCH) for untrusted services
+- [x] Align network mediation with the air-gapped security vision
+- [x] Verification with `tests/common/test_phase10_network.py`
+
+## Phase 11: Personas, Projects & Semantic Memory (ACTIVE)
+- [ ] Implement Persona/Project management (Context isolation)
+- [ ] Add Activity Stream & Reasoning visualization to UI
+- [ ] Develop Semantic History Indexing (Searchable notes/summaries of past events)
+- [ ] Enable agent "Memory Retrieval" via history index queries
+- [ ] Support Toolkit categorized by Project/Persona
+
+## Phase 12: Deep Interposition & Core Toolset (NOT STARTED)
+- [ ] Build the first Interposition API (e.g., Google Calendar Proxy)
+- [ ] Secure credential isolation (R.U.D.I. holds keys, agent gets limited proxy)
+- [ ] Implement core tools: Web Search, Scraper, System Pulse
+- [ ] Real-time user feedback/chat loop for agent corrections
+
+## Phase 13: Remote / Distributed Control Plane (NOT STARTED)
 - [ ] Background service/daemon support
 - [ ] Remote agent connectivity
 - [ ] Multi-agent coordination across machines
