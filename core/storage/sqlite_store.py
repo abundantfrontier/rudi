@@ -28,12 +28,22 @@ class SQLiteStore:
                 scope TEXT,
                 grant_type TEXT,
                 risk_level TEXT,
+                parent_id TEXT,
+                constraints TEXT,
                 expires_at TEXT,
                 granted_at TEXT,
                 last_used_at TEXT,
                 metadata TEXT
             )
         """)
+        # Migration: Add columns if missing (for existing DBs)
+        cursor.execute("PRAGMA table_info(grants)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'parent_id' not in columns:
+            cursor.execute("ALTER TABLE grants ADD COLUMN parent_id TEXT")
+        if 'constraints' not in columns:
+            cursor.execute("ALTER TABLE grants ADD COLUMN constraints TEXT")
+
         # Agents table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agents (
@@ -62,15 +72,17 @@ class SQLiteStore:
         cursor.execute("""
             INSERT OR REPLACE INTO grants (
                 id, agent_id, capability, scope, grant_type, 
-                risk_level, expires_at, granted_at, last_used_at, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                risk_level, parent_id, constraints, expires_at, granted_at, last_used_at, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             grant.id,
             grant.agent_id,
-            grant.capability.value,
+            grant.capability,
             encrypted_scope,
             grant.grant_type.value,
             grant.risk_level,
+            grant.parent_id,
+            json.dumps(grant.constraints) if grant.constraints else None,
             grant.expires_at.isoformat() if grant.expires_at else None,
             grant.granted_at.isoformat(),
             grant.last_used_at.isoformat() if grant.last_used_at else None,
@@ -96,16 +108,17 @@ class SQLiteStore:
                 decrypted_scope = self._decrypt(row['scope'])
                 scope = json.loads(decrypted_scope)
             except Exception:
-                # If decryption fails (e.g. key changed), we skip this grant for safety
                 continue
                 
             grant = CapabilityGrant(
                 id=row['id'],
                 agent_id=row['agent_id'],
-                capability=CapabilityType(row['capability']),
+                capability=row['capability'],
                 scope=scope,
                 grant_type=GrantType(row['grant_type']),
                 risk_level=row['risk_level'],
+                parent_id=row['parent_id'],
+                constraints=json.loads(row['constraints']) if row['constraints'] else None,
                 expires_at=expires_at,
                 granted_at=granted_at,
                 last_used_at=last_used_at,

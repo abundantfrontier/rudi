@@ -58,24 +58,26 @@
 - [x] Update Control Plane for hybrid in-memory/persisted state
 - [x] Verification with `tests/common/test_persistence.py`
 
-## Phase 6: Tauri Desktop Interface (NOT STARTED)
-- [ ] Separate Python core logic for sidecar pattern
-- [ ] Implement JSON-RPC/IPC communication
-- [ ] Core flows: requesting, viewing, approving/denying
-- [ ] Metrics visualization in UI
+## Phase 6: Tauri Desktop Interface (COMPLETED)
+- [x] Separate Python core logic for sidecar pattern
+- [x] Implement JSON-RPC/IPC communication
+- [x] Core flows: requesting, viewing, approving/denying
+- [x] Metrics visualization in UI
+- [x] Verification with `ui/mock_ui.py` and `toy_agent.py`
 
-## Phase 7: Extensibility & Advanced Capabilities (NOT STARTED)
-- [ ] Attenuated/derived capabilities support
-- [ ] Advanced scoping (time-based, conditional)
-- [ ] Plugin system for new capability types
-- [ ] Policy-based auto-approval rules
+## Phase 7: Extensibility & Advanced Capabilities (COMPLETED)
+- [x] Attenuated/derived capabilities support
+- [x] Advanced scoping (time-based, conditional)
+- [x] Plugin system for new capability types
+- [x] Policy-based auto-approval rules
+- [x] Verification with `tests/common/test_phase7.py` and `test_attenuation.py`
 
-## Phase 8: Production Hardening (NOT STARTED)
-- [ ] Distribution packaging (wheels, etc.)
-- [ ] Structured logging enhancement
-- [ ] Standardized metrics export (Prometheus/OpenTelemetry)
-- [ ] Security review and hardening
-- [ ] Operator experience & error message improvements
+## Phase 8: Production Hardening (COMPLETED)
+- [x] Distribution packaging (wheels, etc.)
+- [x] Structured logging enhancement (JSONL + Rotation)
+- [x] Standardized metrics export (Prometheus)
+- [x] Security review and hardening
+- [x] Operator experience & error message improvements
 
 ## Phase 9: LLM Integration & Real Agent Testing (NOT STARTED)
 - [ ] Test agents with local models (Ollama/LM Studio)

@@ -1,7 +1,7 @@
 # R.U.D.I. Capabilities & Approvals System
-**Phased Requirements Specification v1.8**  
+**Phased Requirements Specification v1.10**  
 **Optimized for AI Coding Agents**  
-**Date:** May 5, 2026
+**Date:** May 7, 2026
 
 ---
 
@@ -10,7 +10,7 @@
 **CRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:**
 
 1. **Always read the full current version of this file** (`rudi-spec.md`) before planning, coding, or suggesting any changes.
-2. **Current Active Phase**: Phase 6 — Tauri Desktop Interface.
+2. **Current Active Phase**: Phase 9 — LLM Integration & Real Agent Testing.
 3. Never implement features from future phases unless explicitly instructed.
 4. Every implementation **must** respect the Core Principles, Cross-Platform Strategy, and Foundational Requirements below.
 5. After completing work on any phase, update this spec.md with:
@@ -125,32 +125,66 @@ Transition R.U.D.I. from a volatile, in-memory system to a durable service that 
 
 ---
 
-## Phase 6: Tauri Desktop Interface (ACTIVE)
+## Phase 6: Tauri Desktop Interface (COMPLETED)
 
 **Objective**  
 Build a modern, system-tray-based UI for management and approval.
 
-**Technical Requirements**
-- **Sidecar Pattern**: Run the Python Control Plane as a separate process.
-- **IPC Protocol**: JSON-RPC or similar over a local pipe/socket.
-- **Real-time Notifications**: Trigger desktop notifications for background agent requests.
+**Status: COMPLETED**
+- Implemented the **Sidecar Pattern**: Rust backend automatically spawns the Python Control Plane.
+- Developed a **Bidirectional IPC Bridge**: UDS JSON-RPC messages are bridged to Tauri Frontend events.
+- Created a **Reactive Dashboard (Vanilla TS + Vite)**:
+    - Real-time **System Metrics** visualization.
+    - **Active Grants** list with one-click revocation.
+    - **Interactive Approval Modal** triggered by incoming agent requests.
+- Integrated **Strict Server-Side Enforcement**: The UI and Server now collaborate to mediate all resource access.
 
 ---
 
-## Phase 7: Extensibility & Advanced Capabilities (BACKLOG)
+## Phase 7: Extensibility & Advanced Capabilities (COMPLETED)
 
 **Objective**  
 Support advanced agentic workflows like attenuated sub-grants and dynamic plugins.
 
+**Status: COMPLETED**
+- Implemented **Attenuated Grants**: Agents can now derive narrower, auto-approved sub-grants from their existing permissions.
+- Added **Advanced Scoping & Constraints**: Supported time-of-day restrictions (`time_range`) and stateful usage limits (`max_calls`).
+- Developed **Auto-Approval Rules**: Added a policy engine that handles low-risk requests via configurable wildcard patterns (e.g., `/tmp/public/*`).
+- Created a **Dynamic Plugin System**: Standardized `CapabilityPlugin` interface for adding third-party capabilities without core modification.
+- Enhanced **Generic Scope Matching**: Integrated `fnmatch` wildcard support for all string-based scope keys.
+
+---
+
+## Phase 8: Production Hardening (COMPLETED)
+
+**Objective**  
+Finalize packaging, distribution, and operational readiness.
+
+**Status: COMPLETED**
+- **Structured Logging**: Transitioned to pure **JSONL** format with built-in **`RotatingFileHandler`** (10MB, 5 backups).
+- **Standardized Metrics**: Integrated **Prometheus** metrics export (port 8000) with counters for requests, grants, and blocks.
+- **Packaging**: Enhanced **`pyproject.toml`** with metadata, dependencies, and a **`rudi-server`** console script entry point.
+- **Error Handling**: Improved operator experience with structured JSON-RPC error codes and messages.
+
+---
+
+## Phase 9: LLM Integration & Real Agent Testing (ACTIVE)
+
+**Objective**  
+End-to-end verification with local LLMs and adversarial testing.
+
 **Requirements**
-- **Attenuated Grants**: Allow agents to create narrower grants from their existing broad grants.
-- **Plugin System**: Standardized interface for adding new `CapabilityType` handlers without core modification.
-- **Auto-Approval Rules**: User-defined policies for low-risk, frequent actions.
+- Build proper test agents that use local models (Ollama, LM Studio, etc.)
+- Run realistic multi-step agent scenarios.
+- Evaluate error handling behavior from an agent’s perspective.
+- Perform adversarial testing (e.g. prompt injection attempts to request overly broad capabilities).
 
 ---
 
 ## Change Log
 
+- **2026-05-07 v1.10**: Completed Phase 8. Implemented structured JSONL logging with rotation, Prometheus metrics, and console script packaging. Set Phase 9 as ACTIVE.
+- **2026-05-05 v1.9**: Completed Phase 7. Implemented Attenuated Grants, Advanced Scoping (Constraints), Auto-Approval Rules, and a dynamic Plugin System. Enhanced scope matching with wildcards. Set Phase 8 as ACTIVE.
 - **2026-05-05 v1.8**: Completed Phase 5. Implemented SQLite persistence, SHA-256 token hashing, and optional AES encryption for grants. Set Phase 6 as ACTIVE.
 - **2026-05-05 v1.7**: Restored truncated sections. Revised roadmap to Phases 5-10. Detailed Phase 5 Persistence requirements. Set Phase 5 as ACTIVE.
 - **2026-05-05 v1.6**: Completed Phase 4. Implemented Process Execution, Model Escalation (Token Budgets), API Call capabilities, and Permanent Grants with extra confirmation. Improved scope matching (wildcards, command prefixes).

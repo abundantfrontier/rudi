@@ -1,8 +1,10 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 import os
 import sys
+import asyncio
 import time
+import uuid
 from datetime import datetime, timedelta
 
 # Ensure project root is in path
@@ -12,22 +14,30 @@ from core.models.models import CapabilityRequest, CapabilityType, GrantType
 from core.control_plane.manager import ControlPlaneManager
 from core.audit.store import AuditStore
 
-class TestPhase3Core(unittest.TestCase):
-    def setUp(self):
-        # Truncate audit log before tests
-        if os.path.exists("audit.log"):
-            with open("audit.log", "w") as f:
-                f.truncate()
-            
+class TestPhase3Core(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.test_id = uuid.uuid4().hex[:8]
+        self.db_path = f"test_p3_{self.test_id}.db"
+        self.log_path = f"test_p3_{self.test_id}.log"
+        
         self.config = {
             "default_deny": True,
-            "approval_timeout": 1 # Short timeout for tests
+            "approval_timeout": 1, # Short timeout for tests
+            "db_path": self.db_path,
+            "log_path": self.log_path
         }
-        self.ui_mock = MagicMock()
+        self.ui_mock = AsyncMock()
         self.cp = ControlPlaneManager(self.config, ui_handler=self.ui_mock)
-        self.store = AuditStore()
+        self.store = AuditStore(log_path=self.log_path)
 
-    def test_background_flag_logging(self):
+    async def asyncTearDown(self):
+        self.cp.shutdown()
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        if os.path.exists(self.log_path):
+            os.remove(self.log_path)
+
+    async def test_background_flag_logging(self):
         agent_id = "agent-p3-001"
         self.ui_mock.ask_approval.return_value = (True, GrantType.ALLOW_ONCE, 0)
         
@@ -38,14 +48,14 @@ class TestPhase3Core(unittest.TestCase):
             purpose="Background test",
             background=True
         )
-        self.cp.request_capability(req)
+        await self.cp.request_capability(req)
         
         # Query audit store
         events = self.store.query(agent_id=agent_id, event_type="grant")
         self.assertTrue(len(events) > 0)
         self.assertTrue(events[0]["details"]["background"])
 
-    def test_stale_grant_detection(self):
+    async def test_stale_grant_detection(self):
         agent_id = "agent-p3-002"
         self.ui_mock.ask_approval.return_value = (True, GrantType.SESSION, 3600)
         
@@ -55,32 +65,32 @@ class TestPhase3Core(unittest.TestCase):
             scope={"path": "/tmp/stale"},
             purpose="Stale test"
         )
-        self.cp.request_capability(req)
+        await self.cp.request_capability(req)
         
         # Initially not stale (idle_seconds = 300 default)
         self.assertEqual(len(self.cp.get_stale_grants(idle_seconds=10)), 0)
         
         # Wait for "staleness"
-        time.sleep(2)
+        await asyncio.sleep(2)
         
         # Check with short idle threshold
         stale = self.cp.get_stale_grants(idle_seconds=1)
         self.assertEqual(len(stale), 1)
         self.assertEqual(stale[0].agent_id, agent_id)
 
-    def test_audit_metrics(self):
+    async def test_audit_metrics(self):
         agent_id = "agent-p3-003"
         self.ui_mock.ask_approval.return_value = (True, GrantType.ALLOW_ONCE, 0)
         
         # 1 grant
-        self.cp.request_capability(CapabilityRequest(
+        await self.cp.request_capability(CapabilityRequest(
             agent_id=agent_id, capability=CapabilityType.FILESYSTEM_READ, 
             scope={"path": "/tmp/a"}, purpose="p"
         ))
         
         # 1 denial
         self.ui_mock.ask_approval.return_value = False
-        self.cp.request_capability(CapabilityRequest(
+        await self.cp.request_capability(CapabilityRequest(
             agent_id=agent_id, capability=CapabilityType.FILESYSTEM_READ, 
             scope={"path": "/tmp/b"}, purpose="p"
         ))

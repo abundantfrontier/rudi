@@ -1,13 +1,21 @@
 import unittest
+import asyncio
+import os
+import uuid
 from core.control_plane.manager import ControlPlaneManager
 from core.models.models import CapabilityRequest, CapabilityType
 
-class TestAgentIdentity(unittest.TestCase):
-    def setUp(self):
-        self.config = {"approval_timeout": 60}
+class TestAgentIdentity(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.db_path = f"test_identity_{uuid.uuid4().hex[:6]}.db"
+        self.config = {"approval_timeout": 60, "db_path": self.db_path}
         self.cp = ControlPlaneManager(self.config)
 
-    def test_unregistered_agent_passes(self):
+    async def asyncTearDown(self):
+        self.cp.shutdown()
+        if os.path.exists(self.db_path): os.remove(self.db_path)
+
+    async def test_unregistered_agent_passes(self):
         # By default, if no agents are registered, it passes for backward compatibility
         req = CapabilityRequest(
             agent_id="agent-001",
@@ -18,11 +26,11 @@ class TestAgentIdentity(unittest.TestCase):
         self.cp.register_agent("other-agent", "secret-token")
         
         # Now agent-001 is NOT registered, and there ARE registered agents
-        grant = self.cp.request_capability(req)
+        grant = await self.cp.request_capability(req)
         self.assertIsNone(grant)
         self.assertEqual(self.cp.metrics["total_denials"], 1)
 
-    def test_registered_agent_correct_token(self):
+    async def test_registered_agent_correct_token(self):
         self.cp.register_agent("agent-001", "secret-token")
         req = CapabilityRequest(
             agent_id="agent-001",
@@ -31,9 +39,12 @@ class TestAgentIdentity(unittest.TestCase):
             scope={"path": "/tmp/test.txt"},
             purpose="Testing"
         )
-        grant = self.cp.request_capability(req)
+        # Identity passes, but denied by policy (no ui handler)
+        grant = await self.cp.request_capability(req)
+        self.assertIsNone(grant)
+        self.assertEqual(self.cp.metrics["total_denials"], 1)
         
-    def test_registered_agent_wrong_token(self):
+    async def test_registered_agent_wrong_token(self):
         self.cp.register_agent("agent-001", "secret-token")
         req = CapabilityRequest(
             agent_id="agent-001",
@@ -42,11 +53,11 @@ class TestAgentIdentity(unittest.TestCase):
             scope={"path": "/tmp/test.txt"},
             purpose="Testing"
         )
-        grant = self.cp.request_capability(req)
+        grant = await self.cp.request_capability(req)
         self.assertIsNone(grant)
         self.assertEqual(self.cp.metrics["total_denials"], 1)
 
-    def test_strict_identity_mode(self):
+    async def test_strict_identity_mode(self):
         # Enable strict mode
         self.cp.strict_identity = True
         
@@ -57,11 +68,11 @@ class TestAgentIdentity(unittest.TestCase):
             scope={"path": "/tmp/test.txt"},
             purpose="Testing"
         )
-        grant = self.cp.request_capability(req)
+        grant = await self.cp.request_capability(req)
         self.assertIsNone(grant)
         self.assertEqual(self.cp.metrics["identity_failures"], 1)
         
-        # 2. Registered agent with correct token should pass identity (but fail policy/ui in this test)
+        # 2. Registered agent with correct token should pass identity
         self.cp.register_agent("agent-001", "secret-token")
         req = CapabilityRequest(
             agent_id="agent-001",
@@ -70,11 +81,11 @@ class TestAgentIdentity(unittest.TestCase):
             scope={"path": "/tmp/test.txt"},
             purpose="Testing"
         )
-        grant = self.cp.request_capability(req)
-        self.assertEqual(self.cp.metrics["identity_failures"], 1) # Still 1 from previous fail
+        grant = await self.cp.request_capability(req)
+        self.assertEqual(self.cp.metrics["identity_failures"], 1) 
         self.assertEqual(self.cp.metrics["total_denials"], 2)
 
-    def test_metrics_exposure(self):
+    async def test_metrics_exposure(self):
         self.cp.register_agent("agent-001", "secret-token")
         req = CapabilityRequest(
             agent_id="agent-001",
@@ -83,7 +94,7 @@ class TestAgentIdentity(unittest.TestCase):
             scope={"path": "/tmp/test.txt"},
             purpose="Testing"
         )
-        self.cp.request_capability(req)
+        await self.cp.request_capability(req)
         metrics = self.cp.get_metrics()
         self.assertIn("total_requests", metrics)
         self.assertEqual(metrics["total_requests"], 1)

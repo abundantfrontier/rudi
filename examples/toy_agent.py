@@ -1,24 +1,25 @@
 import sys
 import os
 import uuid
+import asyncio
 
 # Ensure project root is in path
 sys.path.append(os.getcwd())
 
 from core.models.models import CapabilityRequest, CapabilityType
-from core.control_plane.manager import ControlPlaneManager
-from ui.dialog import CLIDialog
-from adapters.platform_adapter import get_platform_adapter
+from core.control_plane.client import ControlPlaneClient
 
-def run_toy_agent():
-    print("--- R.U.D.I. Toy Agent Starting ---")
+async def run_toy_agent():
+    print("--- R.U.D.I. Toy Agent (IPC Mode) Starting ---")
     
-    # 1. Initialize R.U.D.I.
-    config = {"default_deny": True}
-    ui = CLIDialog()
-    cp = ControlPlaneManager(config, ui_handler=ui)
-    adapter = get_platform_adapter(cp)
-    fs = adapter["fs"]
+    # 1. Initialize R.U.D.I. Client
+    client = ControlPlaneClient()
+    try:
+        await client.connect()
+    except Exception as e:
+        print(f"FAILED to connect to R.U.D.I. Server: {e}")
+        print("Make sure 'python3 core/control_plane/server.py' is running.")
+        return
     
     agent_id = f"agent-{uuid.uuid4().hex[:6]}"
     
@@ -33,8 +34,8 @@ def run_toy_agent():
     try:
         # 3. First attempt (should fail without grant)
         print("\n[Attempt 1] Reading without grant...")
-        fs.read_file(agent_id, dummy_path)
-    except PermissionError as e:
+        await client.execute(agent_id, CapabilityType.FILESYSTEM_READ, {"path": dummy_path})
+    except Exception as e:
         print(f"Blocked as expected: {e}")
     
     # 4. Request capability
@@ -46,21 +47,21 @@ def run_toy_agent():
         purpose="Agent needs to read the greeting file."
     )
     
-    grant = cp.request_capability(request)
+    grant_data = await client.request_capability(request)
     
-    if grant:
-        print(f"Grant obtained: {grant.id}")
+    if grant_data:
+        print(f"Grant obtained: {grant_data['id']}")
         
         # 5. Second attempt (should succeed)
         print("\n[Attempt 2] Reading with grant...")
-        content = fs.read_file(agent_id, dummy_path)
-        print(f"Success! File content: '{content}'")
+        result = await client.execute(agent_id, CapabilityType.FILESYSTEM_READ, {"path": dummy_path})
+        print(f"Success! File content: '{result['content']}'")
         
         # 6. Third attempt (should fail, Allow Once is consumed)
         print("\n[Attempt 3] Reading again (Allow Once should be expired)...")
         try:
-            fs.read_file(agent_id, dummy_path)
-        except PermissionError as e:
+            await client.execute(agent_id, CapabilityType.FILESYSTEM_READ, {"path": dummy_path})
+        except Exception as e:
             print(f"Blocked as expected: {e}")
     else:
         print("Grant denied by user.")
@@ -68,6 +69,7 @@ def run_toy_agent():
     # Cleanup
     if os.path.exists(dummy_path):
         os.remove(dummy_path)
+    await client.close()
 
 if __name__ == "__main__":
-    run_toy_agent()
+    asyncio.run(run_toy_agent())

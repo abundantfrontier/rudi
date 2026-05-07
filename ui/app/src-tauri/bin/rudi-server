@@ -1,0 +1,3 @@
+#!/bin/bash
+export PYTHONPATH=$(pwd)/../../..
+python3 $(pwd)/../../../core/control_plane/server.py

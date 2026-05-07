@@ -20,20 +20,18 @@ class AuditStore:
             return []
 
         results = []
+        # Optimization: Read file from end in chunks if very large, 
+        # but for simple production hardening, reading line-by-line reversed is a start.
         with open(self.log_path, 'r') as f:
+            # We still use lines for now but we could optimize this further with seek()
             lines = f.readlines()
-            # Process in reverse to get latest first
             for line in reversed(lines):
                 if len(results) >= limit:
                     break
                 
                 try:
-                    # Log format is "YYYY-MM-DD HH:MM:SS,ms - {json}"
-                    parts = line.split(" - ", 1)
-                    if len(parts) < 2:
-                        continue
-                    
-                    event_data = json.loads(parts[1])
+                    # New format is pure JSONL
+                    event_data = json.loads(line.strip())
                     
                     # Filtering
                     if agent_id and event_data.get("agent_id") != agent_id:
@@ -44,14 +42,14 @@ class AuditStore:
                         continue
                     
                     results.append(event_data)
-                except (json.JSONDecodeError, IndexError):
+                except json.JSONDecodeError:
                     continue
         
         return results
 
     def get_metrics(self) -> Dict[str, int]:
         """Return basic usage counters."""
-        events = self.query(limit=1000)
+        events = self.query(limit=10000) # Increased limit for metrics
         metrics = {
             "total_events": len(events),
             "grants": 0,

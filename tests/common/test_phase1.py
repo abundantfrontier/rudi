@@ -1,7 +1,8 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 import os
 import sys
+import uuid
 
 # Ensure project root is in path
 sys.path.append(os.getcwd())
@@ -10,18 +11,30 @@ from core.models.models import CapabilityRequest, CapabilityType, GrantType
 from core.control_plane.manager import ControlPlaneManager
 from adapters.platform_adapter import get_platform_adapter
 
-class TestPhase1Core(unittest.TestCase):
-    def setUp(self):
+class TestPhase1Core(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.test_id = uuid.uuid4().hex[:8]
+        self.db_path = f"test_p1_{self.test_id}.db"
+        self.log_path = f"test_p1_{self.test_id}.log"
         self.config = {
             "default_deny": True,
-            "approval_timeout": 60
+            "approval_timeout": 60,
+            "db_path": self.db_path,
+            "log_path": self.log_path
         }
-        self.ui_mock = MagicMock()
+        self.ui_mock = AsyncMock()
         self.cp = ControlPlaneManager(self.config, ui_handler=self.ui_mock)
         self.adapter = get_platform_adapter(self.cp)
         self.fs = self.adapter["fs"]
 
-    def test_end_to_end_loop_success(self):
+    async def asyncTearDown(self):
+        self.cp.shutdown()
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        if os.path.exists(self.log_path):
+            os.remove(self.log_path)
+
+    async def test_end_to_end_loop_success(self):
         # 1. Setup a test file
         test_file = os.path.abspath("test_secret.txt")
         with open(test_file, "w") as f:
@@ -39,7 +52,7 @@ class TestPhase1Core(unittest.TestCase):
         self.ui_mock.ask_approval.return_value = True
 
         # 3. Request capability
-        grant = self.cp.request_capability(request)
+        grant = await self.cp.request_capability(request)
         self.assertIsNotNone(grant)
         self.assertEqual(grant.agent_id, agent_id)
 
@@ -54,7 +67,7 @@ class TestPhase1Core(unittest.TestCase):
         # Cleanup
         os.remove(test_file)
 
-    def test_enforcement_block_on_denial(self):
+    async def test_enforcement_block_on_denial(self):
         test_file = os.path.abspath("test_secret_2.txt")
         with open(test_file, "w") as f:
             f.write("data")
@@ -71,7 +84,7 @@ class TestPhase1Core(unittest.TestCase):
         self.ui_mock.ask_approval.return_value = False
 
         # Request capability (should return None)
-        grant = self.cp.request_capability(request)
+        grant = await self.cp.request_capability(request)
         self.assertIsNone(grant)
 
         # Try to read (should fail)
@@ -80,7 +93,7 @@ class TestPhase1Core(unittest.TestCase):
 
         os.remove(test_file)
 
-    def test_path_normalization_enforcement(self):
+    async def test_path_normalization_enforcement(self):
         # Verify that relative paths are normalized and still matched
         test_file = "test_norm.txt"
         abs_path = os.path.abspath(test_file)
@@ -96,7 +109,7 @@ class TestPhase1Core(unittest.TestCase):
             purpose="Testing normalization"
         )
         self.ui_mock.ask_approval.return_value = True
-        self.cp.request_capability(request)
+        await self.cp.request_capability(request)
 
         # Try to read with relative path (should be normalized and allowed)
         data = self.fs.read_file(agent_id, test_file)

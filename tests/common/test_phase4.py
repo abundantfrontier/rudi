@@ -1,8 +1,9 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 import os
 import sys
 import time
+import uuid
 
 # Ensure project root is in path
 sys.path.append(os.getcwd())
@@ -11,16 +12,30 @@ from core.models.models import CapabilityRequest, CapabilityType, GrantType
 from core.control_plane.manager import ControlPlaneManager
 from adapters.platform_adapter import get_platform_adapter
 
-class TestPhase4(unittest.TestCase):
-    def setUp(self):
-        self.config = {"default_deny": True}
-        self.ui_mock = MagicMock()
+class TestPhase4(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.test_id = uuid.uuid4().hex[:8]
+        self.db_path = f"test_p4_{self.test_id}.db"
+        self.log_path = f"test_p4_{self.test_id}.log"
+        self.config = {
+            "default_deny": True,
+            "db_path": self.db_path,
+            "log_path": self.log_path
+        }
+        self.ui_mock = AsyncMock()
         self.cp = ControlPlaneManager(self.config, ui_handler=self.ui_mock)
         self.adapter = get_platform_adapter(self.cp)
         self.proc = self.adapter.get("proc")
         self.net = self.adapter.get("net")
 
-    def test_process_execute_darwin(self):
+    async def asyncTearDown(self):
+        self.cp.shutdown()
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        if os.path.exists(self.log_path):
+            os.remove(self.log_path)
+
+    async def test_process_execute_darwin(self):
         if sys.platform != "darwin":
             self.skipTest("This test requires Darwin")
         
@@ -36,14 +51,14 @@ class TestPhase4(unittest.TestCase):
             scope={"command": cmd_str},
             purpose="test echo"
         )
-        self.cp.request_capability(request)
+        await self.cp.request_capability(request)
         
         # 2. Run command
         result = self.proc.run_command(agent_id, command)
         self.assertEqual(result["stdout"].strip(), "hello")
         self.assertEqual(result["returncode"], 0)
 
-    def test_permanent_grant(self):
+    async def test_permanent_grant(self):
         agent_id = "agent-p4-002"
         # UI returns (approved, type, duration)
         self.ui_mock.ask_approval.return_value = (True, GrantType.PERMANENT, 0)
@@ -54,7 +69,7 @@ class TestPhase4(unittest.TestCase):
             scope={"path": "/tmp/perm"},
             purpose="permanent access"
         )
-        grant = self.cp.request_capability(request)
+        grant = await self.cp.request_capability(request)
         
         self.assertEqual(grant.grant_type, GrantType.PERMANENT)
         self.assertIsNone(grant.expires_at)
@@ -62,7 +77,7 @@ class TestPhase4(unittest.TestCase):
         # Verify it still works after some simulated time
         self.assertTrue(self.cp.validate_grant(agent_id, CapabilityType.FILESYSTEM_READ, {"path": "/tmp/perm"}))
 
-    def test_model_escalate_token_budget(self):
+    async def test_model_escalate_token_budget(self):
         agent_id = "agent-p4-003"
         self.ui_mock.ask_approval.return_value = (True, GrantType.SESSION, 3600)
         
@@ -73,7 +88,7 @@ class TestPhase4(unittest.TestCase):
             scope={"model_name": "gpt-4", "token_budget": 1000},
             purpose="AI reasoning"
         )
-        self.cp.request_capability(request)
+        await self.cp.request_capability(request)
         
         # Use 400 tokens
         self.assertTrue(self.cp.validate_grant(agent_id, CapabilityType.MODEL_ESCALATE, {"model_name": "gpt-4", "tokens": 400}))
@@ -84,7 +99,7 @@ class TestPhase4(unittest.TestCase):
         # Use 200 tokens (should fail, only 100 left)
         self.assertFalse(self.cp.validate_grant(agent_id, CapabilityType.MODEL_ESCALATE, {"model_name": "gpt-4", "tokens": 200}))
 
-    def test_host_wildcard_matching(self):
+    async def test_host_wildcard_matching(self):
         agent_id = "agent-p4-004"
         self.ui_mock.ask_approval.return_value = (True, GrantType.SESSION, 3600)
         
@@ -95,7 +110,7 @@ class TestPhase4(unittest.TestCase):
             scope={"host": "*.google.com", "port": 443},
             purpose="Google services"
         )
-        self.cp.request_capability(request)
+        await self.cp.request_capability(request)
         
         # Validate mail.google.com
         self.assertTrue(self.cp.validate_grant(agent_id, CapabilityType.NETWORK_CONNECT, {"host": "mail.google.com", "port": 443}))
