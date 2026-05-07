@@ -41,6 +41,20 @@ This model enables safe, usable background/autonomous behavior while keeping hum
 
 ---
 
+## Documentation Overview
+
+R.U.D.I. maintains several supporting documents to guide development and usage:
+
+- **[rudi-spec.md](./rudi-spec.md)** — The main specification and development guide. This is the primary document for AI coding agents and contributors.
+- **[README.md](./README.md)** — High-level project overview and getting started guide.
+- **[docs/use_cases.md](./docs/use_cases.md)** — Example use cases, primarily focused on research and information gathering agents.
+- **[docs/foundational_design.md](./docs/foundational_design.md)** — Core design decisions around identity, error handling, configuration, and observability.
+- **[docs/error_handling.md](./docs/error_handling.md)** — Detailed strategies for handling failures, timeouts, and edge cases.
+- **[docs/threat_model.md](./docs/threat_model.md)** — Security threat model and considerations.
+- **[docs/progress.md](./docs/progress.md)** — Tracks implementation progress across phases.
+
+---
+
 ## Foundational Requirements (COMPLETED)
 
 **Agent Identity & Authentication**
