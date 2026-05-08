@@ -2,7 +2,7 @@ import sqlite3
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from core.models.models import CapabilityGrant, CapabilityType, GrantType, DelegatedTask, Persona, Project, HistorySummary
+from core.models.models import CapabilityGrant, CapabilityType, GrantType, DelegatedTask, Persona, Project, HistorySummary, ChatMessage
 
 try:
     from cryptography.fernet import Fernet
@@ -102,6 +102,18 @@ class SQLiteStore:
             )
         """)
 
+        # Chat Messages table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                role TEXT,
+                content TEXT,
+                timestamp TEXT,
+                metadata TEXT
+            )
+        """)
+
         # Agents table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agents (
@@ -110,7 +122,26 @@ class SQLiteStore:
                 created_at TEXT
             )
         """)
+
+        # Settings table (Key-Value)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
         self.conn.commit()
+
+    def set_setting(self, key: str, value: str):
+        cursor = self.conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        self.conn.commit()
+
+    def get_setting(self, key: str) -> Optional[str]:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        return row[0] if row else None
 
     def _encrypt(self, data: str) -> str:
         if self.cipher:
@@ -346,3 +377,35 @@ class SQLiteStore:
                 metadata=json.loads(row['metadata'])
             ))
         return results
+
+    # --- Chat Message CRUD ---
+    def save_chat_message(self, msg: ChatMessage):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO messages (id, project_id, role, content, timestamp, metadata)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            msg.id, msg.project_id, msg.role, msg.content, 
+            msg.timestamp.isoformat(), json.dumps(msg.metadata)
+        ))
+        self.conn.commit()
+
+    def get_chat_history(self, project_id: str, limit: int = 100) -> List[ChatMessage]:
+        messages = []
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT * FROM messages 
+            WHERE project_id = ? 
+            ORDER BY timestamp ASC LIMIT ?
+        """, (project_id, limit))
+        
+        for row in cursor.fetchall():
+            messages.append(ChatMessage(
+                id=row['id'],
+                project_id=row['project_id'],
+                role=row['role'],
+                content=row['content'],
+                timestamp=datetime.fromisoformat(row['timestamp']),
+                metadata=json.loads(row['metadata'])
+            ))
+        return messages

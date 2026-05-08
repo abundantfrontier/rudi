@@ -1,5 +1,5 @@
 # R.U.D.I. Capabilities & Approvals System
-**Phased Requirements Specification v1.15**  
+**Phased Requirements Specification v1.16**  
 **Optimized for AI Coding Agents**  
 **Date:** May 7, 2026
 
@@ -10,7 +10,7 @@
 **CRITICAL RULES — FOLLOW THESE WITHOUT EXCEPTION:**
 
 1. **Always read the full current version of this file** (`rudi-spec.md`) before planning, coding, or suggesting any changes.
-2. **Current Active Phase**: Phase 12 — Deep Interposition & Core Toolset.
+2. **Current Active Phase**: Phase 12 — Persistent Chat Interface & Agent Steering.
 3. Never implement features from future phases unless explicitly instructed.
 4. Every implementation **must** respect the Core Principles, Cross-Platform Strategy, and Foundational Requirements below.
 5. After completing work on any phase, update this spec.md with:
@@ -118,15 +118,7 @@ R.U.D.I. maintains several supporting documents to guide development and usage:
 ---
 
 ## Phase 10: Advanced Network Mediation & Air-Gapped Proxying (COMPLETED)
-
-**Objective**  
-Implement a secure network proxy layer to enable "air-gapped" control over external API communication.
-
-**Achievements**
-- **IPC-Based HTTP Mediation**: Implemented `network:http` capability where agents delegate HTTP requests to the Control Plane.
-- **Granular Policy Enforcement**: Implemented method filtering (Read-Only GET vs POST) and URL pattern matching.
-- **Air-Gapped Ready**: Enables agents with zero network possession to communicate via the mediated Control Plane.
-- **Integrated Client**: Added `http_request` helper to `ControlPlaneClient`.
+- **Achievements**: IPC-Based HTTP Mediation, Granular Policy Enforcement (Read-Only GET), URL Pattern Matching, Air-Gapped Ready architecture.
 
 ---
 
@@ -145,7 +137,20 @@ Isolate user contexts and provide agents with long-term, searchable "memory" of 
 
 ---
 
-## Phase 12: Deep Interposition & Core Toolset (ACTIVE)
+## Phase 12: Persistent Chat Interface & Agent Steering (ACTIVE)
+
+**Objective**  
+Transform the R.U.D.I. dashboard into a conversational Command Center with persistent context and real-time steering.
+
+**Requirements**
+- **Persistent Chat History**: Implement a SQLite-backed chat log isolated by Project.
+- **Interactive Chat UI**: Replace the read-only Activity Stream with a two-way Chat Interface.
+- **The Chat Agent**: Implement a long-lived conversational agent (`chat_agent.py`) that can recall history and execute commands.
+- **Agent Control**: Allow the user to provide corrections, hints, or new instructions to active agents via the chat window.
+
+---
+
+## Phase 13: Deep Interposition & Core Toolset (BACKLOG)
 
 **Objective**  
 Demonstrate the "Virtual Service" pattern and provide essential agent tools.
@@ -154,13 +159,11 @@ Demonstrate the "Virtual Service" pattern and provide essential agent tools.
 - **Interposition APIs**: Build a proxy for a complex service (e.g., Google Calendar).
     - R.U.D.I. holds the actual OAuth credentials.
     - R.U.D.I. exposes a local IPC endpoint that mimics a safe subset of the real API.
-    - Agents use the local endpoint; R.U.D.I. maps and validates every call before proxying to the real service.
 - **Core Workforce**: Implement high-utility plugins for Web Search (Tavily/DDG), Web Scraping, and System Health.
-- **Interactive Feedback**: Support a "Chat" window in the dashboard for real-time agent steering.
 
 ---
 
-## Phase 13: Remote / Distributed Control Plane (BACKLOG)
+## Phase 14: Remote / Distributed Control Plane (BACKLOG)
 
 **Objective**  
 Support cross-machine capability mediation.
@@ -169,11 +172,10 @@ Support cross-machine capability mediation.
 
 ## Change Log
 
+- **2026-05-07 v1.16**: Inserted Phase 12: Persistent Chat Interface. Moved Interposition to Phase 13. Set Phase 12 as ACTIVE.
 - **2026-05-07 v1.15**: Completed Phase 11. Implemented Personas, Projects, Activity Streams, and Semantic Memory. Refactored UI into Interaction/Monitoring tabs. Set Phase 12 as ACTIVE.
 - **2026-05-07 v1.14**: Roadmap Expansion. Detailed Phase 11 (Personas/Memory) and Phase 12 (Interposition/Toolset). Set Phase 11 as ACTIVE.
 - **2026-05-07 v1.13**: Completed Phase 10. Implemented IPC-based HTTP mediation.
-- **2026-05-07 v1.12**: Roadmap Pivot. Added Phase 10 (Advanced Network Mediation) and Phase 11 (UX Refinement).
-- **2026-05-07 v1.11**: Completed Phase 9. Implemented pluggable LLM backend.
 
 ---
 

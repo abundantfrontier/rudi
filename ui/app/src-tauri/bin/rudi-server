@@ -1,3 +1,40 @@
 #!/bin/bash
-export PYTHONPATH=$(pwd)/../../..
-python3 $(pwd)/../../../core/control_plane/server.py
+LOG_FILE="/tmp/rudi_sidecar.log"
+echo "--- Sidecar Startup: $(date) ---" > "$LOG_FILE"
+
+# Find the directory where this script is located
+BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+echo "BIN_DIR: $BIN_DIR" >> "$LOG_FILE"
+
+# Robustly find project root by looking for rudi-spec.md
+curr="$BIN_DIR"
+PROJECT_ROOT=""
+for i in {1..6}; do
+    if [[ -f "$curr/rudi-spec.md" ]]; then
+        PROJECT_ROOT="$curr"
+        break
+    fi
+    curr="$(dirname "$curr")"
+done
+
+if [[ -z "$PROJECT_ROOT" ]]; then
+    echo "ERROR: Could not find project root (rudi-spec.md missing)" >> "$LOG_FILE"
+    exit 1
+fi
+
+echo "PROJECT_ROOT FOUND: $PROJECT_ROOT" >> "$LOG_FILE"
+
+export PYTHONPATH="$PROJECT_ROOT"
+echo "PYTHONPATH: $PYTHONPATH" >> "$LOG_FILE"
+
+# Clean up stale socket
+rm /tmp/rudi.sock 2>/dev/null
+
+# Try to find python3
+PYTHON_PATH=$(which python3)
+echo "Python path: $PYTHON_PATH" >> "$LOG_FILE"
+
+SERVER_SCRIPT="$PROJECT_ROOT/core/control_plane/server.py"
+echo "Executing: $PYTHON_PATH $SERVER_SCRIPT run" >> "$LOG_FILE"
+
+exec "$PYTHON_PATH" "$SERVER_SCRIPT" run >> "$LOG_FILE" 2>&1

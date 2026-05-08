@@ -28,6 +28,19 @@ class OpenAIProvider(LLMProvider):
                 raise LLMGenerationError("openai library not installed. Run 'pip install openai'.")
         return self.client
 
+    def search_models(self, query: str) -> list[Dict[str, Any]]:
+        """
+        OpenAI-compatible endpoints (Ollama, LM Studio) don't standardly expose
+        a central search hub via the V1 API.
+        """
+        return []
+
+    def list_local_models(self) -> list[str]:
+        return []
+
+    def download_model(self, model_path: Optional[str] = None, progress_callback: Optional[callable] = None) -> bool:
+        return False
+
     async def generate(
         self, 
         prompt: str, 

@@ -89,3 +89,11 @@ class HistorySummary(BaseModel):
     summary: str # High-level summary for the LLM index
     content_hash: Optional[str] = None # Reference to full data if needed
     metadata: Dict[str, Any] = {}
+
+class ChatMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    project_id: str
+    role: str # "user", "assistant", "system", "thought"
+    content: str
+    timestamp: datetime = Field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = {}

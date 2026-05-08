@@ -4,7 +4,7 @@ import threading
 import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from core.models.models import CapabilityRequest, CapabilityGrant, GrantType, AuditEvent, CapabilityType, Persona, Project, HistorySummary
+from core.models.models import CapabilityRequest, CapabilityGrant, GrantType, AuditEvent, CapabilityType, Persona, Project, HistorySummary, ChatMessage
 from core.control_plane.interface import ControlPlaneInterface
 from core.policy.engine import PolicyEngine
 from core.audit.logger import AuditLogger
@@ -180,15 +180,13 @@ class ControlPlaneManager(ControlPlaneInterface):
                 timeout = self.config.get("approval_timeout", 60)
                 result = await self.ui_handler.ask_approval(request, timeout=timeout)
                 
-                if isinstance(result, bool):
-                    if not result:
-                        self._log_event(request, "denial", "user_denied")
-                        return None
-                else:
-                    approved, grant_type, duration = result
-                    if not approved:
-                        self._log_event(request, "denial", "user_denied")
-                        return None
+                if not result:
+                    self._log_event(request, "denial", "user_denied")
+                    return None
+                
+                if isinstance(result, dict):
+                    grant_type = result.get("grant_type", GrantType.ALLOW_ONCE)
+                    duration = result.get("duration", 0)
 
         # Normalize scope before granting
         normalized_scope = request.scope.copy()
@@ -508,6 +506,12 @@ class ControlPlaneManager(ControlPlaneInterface):
     def list_projects(self, persona_id: Optional[str] = None) -> List[Project]:
         return self.storage.load_projects(persona_id)
 
+    def set_setting(self, key: str, value: str):
+        self.storage.set_setting(key, value)
+
+    def get_setting(self, key: str) -> Optional[str]:
+        return self.storage.get_setting(key)
+
     def add_history_summary(self, project_id: str, agent_id: str, summary: str, metadata: Dict[str, Any] = {}):
         s = HistorySummary(project_id=project_id, agent_id=agent_id, summary=summary, metadata=metadata)
         self.storage.save_history_summary(s)
@@ -520,3 +524,9 @@ class ControlPlaneManager(ControlPlaneInterface):
 
     def query_history(self, project_id: str, query: Optional[str] = None) -> List[HistorySummary]:
         return self.storage.query_history(project_id, query)
+
+    def save_chat_message(self, msg: ChatMessage):
+        self.storage.save_chat_message(msg)
+
+    def get_chat_history(self, project_id: str, limit: int = 100) -> List[ChatMessage]:
+        return self.storage.get_chat_history(project_id, limit)

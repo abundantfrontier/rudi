@@ -40,10 +40,10 @@ Agent: "The hosts file contains..."
 """
 
 class ResearchAgent:
-    def __init__(self, agent_id: str, project_id: str = "default"):
+    def __init__(self, agent_id: str, project_id: str = "default", socket_path: str = "/tmp/rudi.sock"):
         self.agent_id = agent_id
         self.project_id = project_id
-        self.client = ControlPlaneClient()
+        self.client = ControlPlaneClient(socket_path=socket_path)
         self.history = []
 
     async def run(self, task: str):
@@ -132,9 +132,10 @@ async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("task", type=str, nargs="?", default="Tell me what localhost is mapped to in /etc/hosts")
     parser.add_argument("--project", type=str, default="default")
+    parser.add_argument("--socket", type=str, default="/tmp/rudi.sock")
     args = parser.parse_args()
         
-    agent = ResearchAgent(f"researcher-{uuid.uuid4().hex[:4]}", project_id=args.project)
+    agent = ResearchAgent(f"researcher-{uuid.uuid4().hex[:4]}", project_id=args.project, socket_path=args.socket)
     await agent.run(args.task)
 
 if __name__ == "__main__":

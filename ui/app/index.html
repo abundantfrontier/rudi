@@ -51,10 +51,17 @@
             </section>
           </div>
           <div class="column-right">
-            <section id="activity-stream" class="card">
-              <h2>Activity Stream</h2>
-              <div id="thought-feed" class="stream-container">
-                <div class="empty-state">No active agent thoughts...</div>
+            <section id="chat-section" class="card">
+              <div class="card-header">
+                <h2>Interactive Chat</h2>
+                <div id="agent-indicator" class="status-badge hidden">AGENT THINKING...</div>
+              </div>
+              <div id="chat-log" class="stream-container chat-container">
+                <div class="empty-state">Start a conversation with R.U.D.I...</div>
+              </div>
+              <div class="chat-input-area">
+                <textarea id="chat-input" placeholder="Ask R.U.D.I. to do something..." rows="2"></textarea>
+                <button id="btn-chat-send" class="btn-primary">Send</button>
               </div>
             </section>
           </div>
@@ -112,12 +119,41 @@
                 <h2>Model Management</h2>
                 <div id="ram-status" class="status-badge">NOT LOADED</div>
               </div>
-              <div class="form-group row">
-                <input type="text" id="pull-model-id" placeholder="HuggingFace ID" style="flex: 1" />
-                <div class="button-group">
-                  <button id="btn-pull-model" class="btn-small">Pull</button>
-                  <button id="btn-load-model" class="btn-small btn-success">Load</button>
-                  <button id="btn-unload-model" class="btn-small btn-danger hidden">Unload</button>
+
+              <div class="form-group">
+                <label>Active Downloads</label>
+                <div id="active-downloads" class="compact-list">
+                  <div class="empty-state">No active downloads.</div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Local MLX Models</label>
+                <div id="local-models" class="compact-list">
+                  <!-- Populated via TS -->
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Search HuggingFace (MLX)</label>
+                <div class="row">
+                  <input type="text" id="model-search-query" placeholder="e.g. Llama-3" style="flex: 1" />
+                  <button id="btn-search-models" class="btn-small">Search</button>
+                </div>
+                <div id="model-search-results" class="search-results-container hidden">
+                  <!-- Dynamic Results -->
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Pull Model by ID</label>
+                <div class="row">
+                  <input type="text" id="pull-model-id" placeholder="HuggingFace ID" style="flex: 1" />
+                  <div class="button-group">
+                    <button id="btn-pull-model" class="btn-small">Pull</button>
+                    <button id="btn-load-model" class="btn-small btn-success">Load</button>
+                    <button id="btn-unload-model" class="btn-small btn-danger hidden">Unload</button>
+                  </div>
                 </div>
               </div>
               <div id="model-status" class="status-text">Weights stay on disk until 'Load' is clicked.</div>

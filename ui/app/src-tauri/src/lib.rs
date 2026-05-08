@@ -60,18 +60,25 @@ async fn send_rpc(
 
 async fn start_uds_listener<R: Runtime>(app: AppHandle<R>, uds_writer: Arc<Mutex<Option<tokio::io::WriteHalf<UnixStream>>>>) {
     let socket_path = "/tmp/rudi.sock";
+    println!("UDS Listener: Starting and waiting for socket at {}", socket_path);
     
     // Wait for sidecar to start and create socket
     let mut retry_count = 0;
     let stream = loop {
         match UnixStream::connect(socket_path).await {
-            Ok(s) => break s,
-            Err(_) if retry_count < 10 => {
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            Ok(s) => {
+                println!("UDS Listener: Successfully connected to socket!");
+                break s;
+            },
+            Err(e) if retry_count < 40 => {
+                if retry_count % 10 == 0 {
+                    println!("UDS Listener: Connection attempt {} failed: {}. Retrying...", retry_count, e);
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                 retry_count += 1;
             }
             Err(e) => {
-                eprintln!("Failed to connect to UDS: {}", e);
+                eprintln!("UDS Listener: CRITICAL FAILURE - Failed to connect after {} retries: {}", retry_count, e);
                 return;
             }
         }
@@ -124,6 +131,12 @@ pub fn run() {
             });
             
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // For R.U.D.I., we want to actually quit to clean up the sidecar.
+                window.app_handle().exit(0);
+            }
         })
         .invoke_handler(tauri::generate_handler![send_rpc])
         .run(tauri::generate_context!())
