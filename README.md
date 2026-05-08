@@ -3,161 +3,130 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform: macOS / Linux](https://img.shields.io/badge/Platform-macOS%20%2F%20Linux-lightgrey.svg)](#)
 
-R.U.D.I. is a capability-based mediation layer (Control Plane) designed to give AI agents bounded, revocable, and human-approved authority. Instead of agents holding direct access to system resources, they must request specific "capabilities" from R.U.D.I., which are then evaluated, approved by a human (when necessary), and strictly enforced at runtime.
+R.U.D.I. is a capability-based mediation layer (Control Plane) designed to give AI agents bounded, revocable, and human-approved authority. Instead of agents holding direct access to system resources, they must request specific "capabilities" from R.U.D.I., which are then evaluated, approved by a human, and strictly enforced at runtime.
 
-This model enables safe, autonomous agent behavior by addressing the risks of over-privileged access and lack of human oversight in modern AI systems.
+R.U.D.I. now features a **Conversational Command Center**, transforming the dashboard from a monitoring tool into a proactive, local-first AI workspace.
 
 ---
 
 ## 🌟 Core Principles
 
 - **Least Privilege by Default**: Agents start with zero permissions.
-- **Mediation over Possession**: Agents never hold capabilities directly; the Control Plane manages and enforces all access.
-- **Human-in-the-Loop**: High-impact actions require explicit human approval via an interactive dialog.
-- **Explicit Metadata**: Every grant includes purpose, scope, duration, requesting agent, and human approver.
-- **Full Auditability**: 100% durable audit trail (with `fsync`) of every request, decision, and resource use.
-- **Time-Bounded Authority**: Preference for session-based or time-boxed grants to prevent "privilege creep."
+- **Mediation over Possession**: Agents never hold credentials or capabilities; the Control Plane enforces all access.
+- **Human-in-the-Loop**: High-impact actions require explicit approval via an interactive Desktop interface.
+- **Strict Context Isolation**: Authority is siloed by **Persona** and **Project**, preventing cross-context data leaks.
+- **Full Auditability**: 100% durable audit trail (with `fsync`) of every request, decision, and use.
+- **Local-First**: Optimized for Apple Silicon (MLX) and offline-capable capability mediation.
 
 ---
 
 ## 🏗️ Architecture
 
-R.U.D.I. is built with a cross-platform strategy, maximizing shared logic while using specialized adapters for platform-specific enforcement (macOS and Linux).
+R.U.D.I. uses a "Sidecar" architecture, combining a high-performance Python Control Plane with a modern Tauri/Rust Desktop interface.
 
 ```text
 rudi/
-├── core/                  # Platform-independent logic
-│   ├── control_plane/     # Central request management & evaluation
-│   ├── policy/            # Logic for matching requests to existing grants
-│   ├── audit/             # Durable logging and event storage
-│   ├── models/            # Pydantic data models for grants/requests
-│   └── common/            # Shared configuration and utilities
-├── platforms/             # Platform-specific enforcement layers
+├── core/                  # Control Plane Logic
+│   ├── control_plane/     # IPC Server, Request Management & Evaluation
+│   ├── policy/            # Grant Matching & Auto-Approval Logic
+│   ├── audit/             # Durable JSONL logging and SQLite event storage
+│   ├── llm/               # Pluggable Providers (MLX, OpenAI)
+│   ├── storage/           # SQLite Persistence (Grants, Chat, Memory)
+│   └── models/            # Pydantic data models
+├── platforms/             # Platform-specific Enforcement Adapters
 │   ├── darwin/            # macOS implementation (Process, FS, Network)
-│   └── linux/             # Linux implementation (Placeholders/Real)
-├── adapters/              # Platform adapter selector
-├── ui/                    # User interface (Dialogs for approval)
-├── examples/              # Usage demonstrations for agents
-└── tests/                 # Comprehensive test suite
+│   └── linux/             # Linux implementation
+├── ui/
+│   └── app/               # Tauri/Vite/TypeScript Frontend
+│       ├── src/           # Reactive Dashboard & Chat UI
+│       └── src-tauri/     # Rust-based IPC Bridge & Sidecar Bootloader
+├── examples/              # Agents (ChatAgent, ResearchAgent, UITester)
+├── tests/
+│   └── integration/       # Headless System Verification Suite
+└── rudi-spec.md           # The primary specification and roadmap
 ```
 
 ---
 
-## 🛡️ Security Features
+## 🚀 Key Features (v1.16)
 
-- **Strict Identity Mode**: When enabled (`strict_identity: true` in config), all agents MUST be registered with a token. Unregistered agents or invalid tokens result in immediate denial.
-- **Hierarchical Scoping**: Path-based capabilities support directory-level grants (e.g., granting `/tmp/` allows access to all sub-files).
-- **Token Budgets**: Model escalation capabilities can be bounded by stateful token limits that decrement on use.
+### 💬 Conversational Command Center
+- **Persistent, Isolated Chat**: Every project has its own private, searchable chat history.
+- **Agent Steering**: Interactively guide background agents, providing hints or corrections in real-time.
+- **Closed-Loop Reasoning**: Agents can "talk" and "act" in the same turn. Capability requests appear as interactive popups within the chat flow.
 
----
+### 🧠 Semantic Memory & Context
+- **Persona/Project Silos**: Strict separation of history, grants, and tasks between different user contexts.
+- **Automated Summarization**: Agent actions are automatically summarized and indexed in a searchable SQLite database.
 
-## 📊 Observability & Metrics
-
-The Control Plane exposes real-time metrics for system monitoring:
-
-- `total_requests`: Number of capability requests received.
-- `total_grants`: Number of approved grants.
-- `total_denials`: Number of denied requests.
-- `total_uses`: Number of successful resource accesses.
-- `total_blocked`: Number of blocked resource accesses.
-- `identity_failures`: Number of requests with invalid or missing agent tokens.
-
-Operators can query this state via `cp.get_metrics()` or check overall health via `cp.get_status()`.
+### 💻 Local LLM Management
+- **Model Library**: Automatically scans for local MLX models on your Mac.
+- **Smart RAM Management**: One-click preloading with real-time byte counters and background progress bars.
+- **Autoloading**: Remembers your last-used model and restores it instantly on startup.
 
 ---
 
-## 🛡️ Capabilities Supported (v1)
+## 🛡️ Capabilities Supported
 
 | Capability | Description | Scope Support |
 | :--- | :--- | :--- |
 | `filesystem:read` | Read access to files/directories | Realpath normalization, hierarchical scoping |
 | `filesystem:write` | Write access to files/directories | Realpath normalization, hierarchical scoping |
-| `network:connect` | Outbound network connections | Hostnames, IPs, Wildcards (`*.example.com`) |
-| `process:execute` | Execution of system commands | Command prefixes, sandboxing (interface-level) |
-| `model:escalate` | Access to more powerful LLMs | Stateful **Token Budgets** |
-| `api:call` | Generic API calls | Service/Endpoint matching |
+| `network:http` | Granular HTTP mediation | Method matching (GET/POST), URL pattern matching |
+| `network:connect` | Outbound raw TCP connections | Hostnames, IPs, Wildcards (`*.example.com`) |
+| `process:execute` | Execution of system commands | Command prefixes, strict parent-process monitoring |
+| `history:query` | Access to past agent work | Project-isolated semantic search |
 
 ---
 
-## 🤖 For Developers & AI Agents
-
-This repository is optimized for collaboration with AI coding agents.
-
-- **Source of Truth**: Always refer to [rudi-spec.md](rudi-spec.md) for current requirements, architectural constraints, and active development phases.
-- **Workflow**: 
-    1. Read `rudi-spec.md` first.
-    2. Focus only on the **Current Active Phase**.
-    3. Update the spec and progress docs upon completion.
-- **Testing**: Run all tests with `export PYTHONPATH=$PYTHONPATH:. && python3 tests/common/test_comprehensive.py`.
+## 🛡️ Reliability & Security
+- **Parent Watchdog**: The Control Plane automatically self-terminates if the UI is closed (Dead Man's Switch).
+- **Headless Verification**: A comprehensive integration suite (`verify_system.py`) that simulates the UI to verify security boundaries in seconds.
+- **Atomic Validation**: Enforcement is performed exclusively by platform-specific adapters to prevent state consumption errors.
 
 ---
 
-## 🚀 Getting Started
+## 🤖 Getting Started
 
 ### Prerequisites
-- Python 3.9+
-- macOS (Darwin) or Linux
+- Python 3.10+
+- Node.js & npm
+- macOS (Apple Silicon recommended for MLX) or Linux
 
 ### Installation
 ```bash
 git clone https://github.com/your-repo/rudi.git
 cd rudi
 pip install -r requirements.txt
+cd ui/app && npm install
 ```
 
-### Running Tests
-Verify the installation and platform compatibility:
+### Running the App
 ```bash
-# Ensure project root is in PYTHONPATH
+# Launch the full Conversational Command Center
+npm run tauri dev
+```
+
+### Automated Verification
+```bash
+# Verify the entire system (IPC, DB, Isolation, LLM) headlessly
 export PYTHONPATH=$PYTHONPATH:.
-python3 tests/common/test_comprehensive.py
+python3 tests/integration/verify_system.py
 ```
-
----
-
-## 📖 Usage Example
-
-Here is a simplified example of how an agent interacts with R.U.D.I.:
-
-```python
-from core.control_plane.manager import ControlPlane
-from core.models.models import CapabilityRequest, CapabilityType
-
-# 1. Initialize Control Plane
-cp = ControlPlane()
-
-# 2. Agent requests access to read a sensitive file
-request = CapabilityRequest(
-    agent_id="agent-001",
-    capability=CapabilityType.FILESYSTEM_READ,
-    scope={"path": "/etc/hosts"},
-    purpose="Checking local host configurations"
-)
-
-# 3. Request evaluation (triggers UI dialog if not already granted)
-grant = cp.request_capability(request)
-
-if grant:
-    print(f"Access granted! Grant ID: {grant.id}")
-    # 4. Use the capability through the enforcement layer
-    content = cp.fs_enforcement.read_file("agent-001", "/etc/hosts")
-else:
-    print("Access denied by user.")
-```
-
----
-
-## 📜 Audit Logging
-R.U.D.I. maintains an `audit.log` in the root directory. Every interaction is recorded as a JSON entry and flushed to disk using `fsync` to ensure no event is lost, even in the event of a crash.
 
 ---
 
 ## 🗺️ Roadmap
-- **Phase 5**: Persistence & State Management (Active).
-- **Phase 6**: Tauri Desktop Interface.
-- **Phase 7**: Extensibility & Advanced Capabilities.
+- **Phase 12**: Persistent Chat & Agent Steering (**DONE**)
+- **Phase 13**: Deep Interposition (Google Calendar Proxy, Web Workforce) (**ACTIVE**)
+- **Phase 14**: Remote / Distributed Control Plane (**BACKLOG**)
+
+---
+
+## 📜 Audit Logging
+R.U.D.I. maintains an `audit.log` and a searchable SQLite event store. Every interaction is recorded as a JSON entry and flushed to disk using `fsync` to ensure a permanent, tamper-evident security record.
 
 ---
 
 ## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
